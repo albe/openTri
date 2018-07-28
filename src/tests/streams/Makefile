@@ -1,0 +1,18 @@
+TARGET = streamstest
+OBJS = streamstest.o ../../streams/streams.o ../../triLog.o
+
+INCDIR = 
+CFLAGS = -O0 -G0 -Wall -g -D_DEBUG_LOG -D__PSP__
+CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
+ASFLAGS = $(CFLAGS)
+
+LIBS = -lpsprtc
+
+BUILD_PRX = 1
+
+EXTRA_TARGETS = EBOOT.PBP
+
+all: clean
+
+PSPSDK=$(shell psp-config --pspsdk-path)
+include $(PSPSDK)/lib/build.mak

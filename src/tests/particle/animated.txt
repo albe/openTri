@@ -1,0 +1,25 @@
+[particlesystem]
+emitter: EXPLOSION
+// can load .tga, .png and .tri
+texture: smoke_ani.tga
+// Possible values: GU_TFX_MODULATE, GU_TFX_DECAL, GU_TFX_BLEND, GU_TFX_REPLACE, GU_TFX_ADD
+texMode: GU_TFX_MODULATE
+blendMode: ALPHA
+renderMode: GU_SPRITES
+
+[emitter]
+pos: (0.0, 0.0, -5.0, 0.0)
+posRand: (5.0, 5.0, 2.0, 0.0)
+vel: (0.0, 0.0, 0.0, 0.0)
+velRand: (0.0, 0.0, 0.0, 0.0)
+hTexFrames: 4
+vTexFrames: 2
+// Loop 8 times through the animation during whole lifetime (-> 8*8/8 = 8fps)
+nTexLoops: 8
+fixedTexRate: 0
+life: 8.0
+lifeRand: 0.0
+max: 10
+rate: 2
+lifetime: 0
+growth: 0.0

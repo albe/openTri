@@ -1,0 +1,58 @@
+// This is supposed to be a template for particle system scripts
+// All variables are optional
+[emitter]
+pos: (0.0, 0.0, 0.0, 0.0)
+posRand: (1.0, 1.0, 1.0, 5.0)
+vel: (0.0, 0.0, 0.0, 0.0)
+velRand: (1.0, 1.0, 1.0, 5.0)
+gravity: (0.0, -0.3, 0.0, 0.0)
+wind: (1.0, 0.0, 0.0, 0.0)
+windRand: (0.0, 0.0, 0.0, 0.0)
+numCols: 3
+cols: (0.0, 1.0, 0.0, 0.5) (0.0, 1.0, 0.0, 1.0) (0.0, 1.0, 0.0, 0.0)
+size: 1.0
+sizeRand: 0.2
+growth: -0.1
+glitter: 0.5
+glitterSpeed: 15.0
+life: 5.0
+burnout: 0.0
+friction: 0.05
+binding: 0.0
+loosen: 0.0
+hTexFrames: 4
+vTexFrames: 2
+nTexLoops: 5
+fixedTexRate: 0
+max: 256
+maxVortex: 64
+vortexRange: 0.66
+rate: 32
+rateVortex: 8
+lifetime: 0.0
+
+// Set a custom user defined blend mode
+[blendmode]
+// Possible values: GU_ADD, GU_SUBTRACT, GU_REVERSE_SUBTRACT, GU_MIN, GU_MAX, GU_ABS
+op: GU_ADD
+// Possible values: GU_SRC_COLOR, GU_ONE_MINUS_SRC_COLOR, GU_SRC_ALPHA, GU_ONE_MINUS_SRC_ALPHA, GU_DST_COLOR, GU_ONE_MINUS_DST_COLOR, 
+//                  GU_DST_ALPHA, GU_ONE_MINUS_DST_ALPHA, GU_FIX
+src_op: 
+dst_op: 
+// RGBA Hex
+src_fix: FFFFFFFF
+dst_fix: FFFFFFFF
+
+[particlesystem]
+// overrides [emitter] definition. Possible values: FIRE, EXPLOSION, SPRINKLE, WATERFALL, SMOKE
+// You can however override the definitions again by another [emitter] block AFTER this
+emitter: FIRE
+// can load .tga, .png and .tri
+texture: smoke.tga
+// Possible values: GU_TFX_MODULATE, GU_TFX_DECAL, GU_TFX_BLEND, GU_TFX_REPLACE, GU_TFX_ADD
+texMode: GU_TFX_MODULATE
+texColor: FFFFFF
+// overrides [blendmode] definition. Possible values: ALPHA, ADD, GLENZ, SUB, ALPHA_ADD, ALPHA_SUB
+blendMode: ALPHA_SUB
+// Possible values: GU_POINTS, GU_LINES, GU_SPRITES, GU_TRIANGLES
+renderMode: GU_SPRITES

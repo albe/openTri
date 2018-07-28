@@ -1,0 +1,330 @@
+triImage File Format Specification
+
+Copyright (C) 2007
+
+Alexander Berl
+
+raphael@fx-world.org
+
+
+Draft Version 1.0
+
+
+
+This is the definitive document describing the tri image file format.  This 
+is a low level spec that describes the actual byte level format of tri image
+files.
+
+
+
+
+Bitflags needed by the format:
+
+	#include <pspgu.h>
+	#define IMG_FORMAT_5650	GU_PSM_5650	/**< Pixelformat R5:G6:B5:A0. */
+	#define IMG_FORMAT_5551	GU_PSM_5551	/**< Pixelformat R5:G5:B5:A1. */
+	#define IMG_FORMAT_4444	GU_PSM_4444	/**< Pixelformat R4:G4:B4:A4. */
+	#define IMG_FORMAT_8888	GU_PSM_8888	/**< Pixelformat R8:G8:B8:A8. */
+	#define IMG_FORMAT_T4	GU_PSM_T4	/**< Pixelformat 4bit indexed. */
+	#define IMG_FORMAT_T8	GU_PSM_T8	/**< Pixelformat 8bit indexed. */
+	#define IMG_FORMAT_T16	GU_PSM_T16	/**< Pixelformat 16bit indexed. */
+	#define IMG_FORMAT_T32	GU_PSM_T32	/**< Pixelformat 32bit indexed. */
+	#define IMG_FORMAT_DXT1	GU_PSM_DXT1	/**< Pixelformat DXT1 compressed. */
+	#define IMG_FORMAT_DXT3	GU_PSM_DXT3	/**< Pixelformat DXT3 compressed. */
+	#define IMG_FORMAT_DXT5	GU_PSM_DXT5	/**< Pixelformat DXT5 compressed. */
+	
+	
+	/** triImageChunkHeader.flags
+	  */
+	#define TRI_IMG_FLAGS_SWIZZLE	0x0001
+	#define TRI_IMG_FLAGS_RLE		0x0002
+	#define TRI_IMG_FLAGS_GZIP		0x0004
+
+
+The specification of pspgu.h can be taken from here: http://svn.ps2dev.org/filedetails.php?repname=psp&path=%2Ftrunk%2Fpspsdk%2Fsrc%2Fgu%2Fpspgu.h&rev=0&sc=0
+
+By default, the above defines default to the following:
+	/* Pixel Formats */
+	#define GU_PSM_5650		(0) /* Display, Texture, Palette */
+	#define GU_PSM_5551		(1) /* Display, Texture, Palette */
+	#define GU_PSM_4444		(2) /* Display, Texture, Palette */
+	#define GU_PSM_8888		(3) /* Display, Texture, Palette */
+	#define GU_PSM_T4		(4) /* Texture */
+	#define GU_PSM_T8		(5) /* Texture */
+	#define GU_PSM_T16		(6) /* Texture */
+	#define GU_PSM_T32		(7) /* Texture */
+	#define GU_PSM_DXT1		(8) /* Texture */
+	#define GU_PSM_DXT3		(9) /* Texture */
+	#define GU_PSM_DXT5		(10) /* Texture */
+
+
+All multi-byte words in the file are supposed to be stored in little-endian order.
+
+The file header is a 16 byte long dataset, identifying the image format and giving the number of
+sub images/frames included in the file.
+
+	/** Image File Header.
+	  */
+	typedef struct triImageFileHeader
+	{
+		triChar			magic[8];		/**< "triImage". */
+		triU32			numFrames;		/**< Number of frames for animations. */
+		triU32			reserved;
+	} triImageFileHeader;	// 16 byte header
+
+The file identifyer is the character string "triImage" and is exactly 8 bytes long. This is because following
+formats might use the string "triImgXY" as identifyer, where XY denotes a file format version.
+The bytes 9-12 represent an unsigned 32bit integer, which holds the number of image frames contained within the file.
+The last 4 bytes are reserved for future use and should be set to 0 by any file writer.
+
+
+After the file header follows a number of chunk headers equal to the number of frames included in the file.
+Each chunk is then followed by other data depending on the contents of the chunk header.
+A chunk header is also a 16 byte data block containing important information about the image format in the
+following datablock.
+
+	typedef struct triImageChunkHeader
+	{
+		triU16			format;			/**< Image format - one of IMG_FORMAT_*. */
+		triU16			palformat;		/**< Palette format - one of IMG_FORMAT_5650, IMG_FORMAT_5551, IMG_FORMAT_4444, IMG_FORMAT_8888. */
+		triU16			flags;			/**< Is image swizzled/compressed. */
+		triU16			numLevels;		/**< Number of mipmap levels stored in the image. */
+		triU16			delay;			/**< Delay for image animation */
+		triS16			xOffs;			// placement offset on screen
+		triS16			yOffs;
+		triU16			reserved;
+	} triImageChunkHeader;	// 16 byte Image Header
+
+
+If format is one of IMG_FORMAT_T* then the palformat entry is valid and needs to be parsed. After the chunk immediately follows
+a palette block with a number of entries equal to the image format, each entry the size equal to what is given with palformat.
+For 4Bit images (IMG_FORMAT_T4) the palette consists of 16 entries. For any other format it contains exactly 256 entries.
+Each palette entry is either 2 or 4 bytes in size, depending on palformat.
+
+The flags contain a number of bits describing how the image data is stored. Currently, this can be swizzled (see http://wiki.ps2dev.org/psp:ge_faq),
+RLE and/or gzip compressed. The order of compression applied is RLE, then gzip.
+Other compression methods may follow in future revisions to the file format.
+
+numLevels specifies the number of mipmap level stored together with the original image. Each mipmap level is one quarter (half
+on both vertical and horizontal directions) the size of the previous level. For paletted images, all mipmap levels share the
+palette with the original image (this is a restriction of the PSPs hardware).
+
+delay specifies the display delay for this frame when the image contains multiple frames to make up an animation. The delay is
+given in ms, hence the maximum delay is 65.5 seconds. This should be sufficient for most uses and the limitation was chosen on
+purpose, to keep the structure's elements aligned.
+
+xOffs and yOffs give a vertical and horizontal placement offset for the image given in pixels. This allows animations to contain
+smaller frames that are not placed on the top-left position of the animation's rectangle.
+
+The last two bytes of the data block are reserved for future use and should be filled with zeros in all writers.
+
+
+
+After a ImageChunkHeader and the possible palette data follows a ImageChunk that further describes the following image data.
+This is again a 16 byte data block.
+
+	typedef struct triImageChunk
+	{
+		triU32			width;			/**< Image width. */
+		triU32			height;			/**< Image height. */
+		triU32			stride;			/**< Image allocated width (power of two). */
+		triU32			size;			/**< Size of data in bytes. */
+	} triImageChunk;		// 16 byte Image chunk
+
+
+The width and height describe the actual size of the image, while the stride describes the images width in memory. This is required
+to allow non power of two images to be loaded directly into memory and be uploaded to graphics hardware without further processing.
+However, stride is not required to be a power of two, so the reader still has to check.
+The size element stores the actual bytesize of the data to follow, which is required for gzip or rle compressed images.
+After the ImageChunk block follow size bytes of image data, which need to be decompressed depending on the set image flags.
+
+After that another ImageChunkHeader may follow, repeating the steps from above.
+
+
+
+Short form specification of the file format as used in the comments of the current implementation:
+
+/* .tri File Format Spec:
+ *
+ * <triImageFileHeader> (tIH)
+ *   numFrames times:
+ *   <triImageChunkHeader> (tCH)
+ *   [palette]
+ *     numLevels+1 times:
+ *     <triImageChunk> (tIC)
+ *     <data>
+ *
+ * Palette is either 16 (format = IMG_FORMAT_T4) or 256 (format = IMG_FORMAT_T*) entries.
+ * One palette entry is either 2 bytes (palformat = IMG_FORMAT_4444/5650/5551)
+ * or 4 bytes ( palformat = IMG_FORMAT_8888).
+ *
+ * Data is tIC.size bytes of data, either in raw, rle compressed (tCH.flags&TRI_IMG_FLAGS_RLE)
+ * or gzip compressed (tCH.flags&TRI_IMG_FLAGS_GZIP).
+ *
+ * A tIC represents one mipmap level for a texture. The size may vary, but the format and palette
+ * must be the same for all levels.
+ *
+ * A tCH represents one animation frame in an animated image/texture. Each frame
+ * can have a different format and palette.
+ */
+
+
+
+Sample RLE decoding source code (for decoding 4,8,16,24 and 32bit RLE images):
+
+
+void decodeRLE( void* src, int srcLen, void* dst, int dstLen, int bits )
+{
+    long count = 0;
+    long count2 = 0;
+    unsigned char* s = (unsigned char*)src;
+    unsigned char* d = (unsigned char*)dst;
+    if (bits==4) {
+      int sswap = 0, dswap = 0;
+      do {
+       unsigned char c;
+       if (sswap)
+		 c = (*(s+count) & 0xF0) | (*(s+count+1) & 0xF);
+	   else
+	     c = *(s+count);
+	   count++;
+       if (c & 0x80) {
+         unsigned char a;
+         if (sswap^=1)
+           a = (*(s+count) & 0xF);
+         else
+           a = (*(s+count++) >> 4);
+         c = (c & 0x7F)+1;
+         if (dswap)
+         {
+           *(d+count2++) |= (a << 4);
+           c--;
+           dswap = 0;
+         }
+         for (;c>1;c-=2)
+           *(d+count2++) = (a | a << 4);
+         if (c)
+         {
+           dswap = 1;
+           *(d+count2) = a;
+         }
+       } else {
+         c++;
+         if (sswap == dswap)
+         {
+           if (sswap)
+           {
+             *(d+count2++) |= *(s+count++) & 0xF0;
+             c--;
+           }
+		   for (;c>1;c-=2)
+			 *(d+count2++) = *(s+count++);
+		   if (c)
+		   {
+		     *(d+count2) = *(s+count) & 0xF;
+		     dswap = sswap = 1;
+		   }
+		 }
+		 else
+		 {
+		   for (;c>0;c--)
+		     if (dswap^=1)
+		       *(d+count2) = *(s+count++) >> 4;
+		     else
+		       *(d+count2++) |= *(s+count) << 4;
+		   sswap = dswap^1;
+		 }
+       }
+      } while ((count<srcLen) && (count2<dstLen));
+ 
+ 
+    } else if (bits==8) {
+      do {
+       unsigned char c = *(s+count++);
+       if (c & 0x80) {
+         c = (c & 0x7F);
+         unsigned char a = *(s+count++);
+         for (c++;c>0;c--)
+           *(d+count2++) = a;
+       } else {
+         for (c++;c>0;c--)
+           *(d+count2++) = *(s+count++);
+       }
+      } while ((count<srcLen) && (count2<dstLen));
+
+
+    } else if (bits==16) {
+      do {
+       unsigned char c = *(s+count++);
+       if (c & 0x80) {
+		 unsigned char b1 = *(s+count++);
+		 unsigned char b2 = *(s+count++);
+         c = (c & 0x7F);
+         for (c++;c>0;c--) {
+           *(d+count2++) = b1;
+           *(d+count2++) = b2;
+         }
+       } else {
+         for (c++;c>0;c--) {
+           *(d+count2++) = *(s+count++);
+           *(d+count2++) = *(s+count++);
+         }
+       }
+      } while ((count<srcLen) && (count2<dstLen));
+
+
+    } else if (bits==24) {
+      do {
+       unsigned char c = *(s+count++);
+       if (c & 0x80) {
+         unsigned char t[3];
+         t[0] = *(s+count++);
+         t[1] = *(s+count++);
+         t[2] = *(s+count++);
+         c = (c & 0x7F);
+         for (c++;c>0;c--) {
+           *(d+count2++) = t[0];
+           *(d+count2++) = t[1];
+           *(d+count2++) = t[2];
+         }
+       } else {
+         for (c++;c>0;c--) {
+           *(d+count2++) = *(s+count++);
+           *(d+count2++) = *(s+count++);
+           *(d+count2++) = *(s+count++);
+         }
+       }
+      } while ((count<srcLen) && (count2<dstLen));
+
+
+    } else if (bits==32) {
+      do {
+       unsigned char c = *(s+count++);
+       if (c & 0x80) {
+	     unsigned char w[4];
+         w[0] = *(s+count++);
+         w[1] = *(s+count++);
+         w[2] = *(s+count++);
+         w[3] = *(s+count++);
+         c = (c & 0x7F);
+         for (c++;c>0;c--) {
+           *(d+count2++) = w[0];
+           *(d+count2++) = w[1];
+           *(d+count2++) = w[2];
+           *(d+count2++) = w[3];
+         }
+       } else {
+         for (c++;c>0;c--) {
+           *(d+count2++) = *(s+count++);
+           *(d+count2++) = *(s+count++);
+           *(d+count2++) = *(s+count++);
+           *(d+count2++) = *(s+count++);
+         }
+       }
+      } while ((count<srcLen) && (count2<dstLen));
+    }
+}
+
+
+
+.EOF
