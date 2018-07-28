@@ -26,15 +26,4 @@ ifeq ($(FT),1)
 endif
 
 PSPSDK=$(shell psp-config --pspsdk-path)
-PSPDIR = $(shell psp-config --psp-prefix)
 include $(PSPSDK)/lib/build.mak
-
-release: clean install
-
-install: $(TARGET_LIB)
-	@echo Installing libtri to "$(PSPDIR)/lib"
-	@$(CP) libtri.a $(PSPDIR)/lib
-	@echo Installing headers to "$(PSPDIR)/include/openTri"
-	@$(MKDIR) -p $(PSPDIR)/include/openTri
-	@$(CP) *.h $(PSPDIR)/include/openTri
-	@echo Done.

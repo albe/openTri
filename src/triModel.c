@@ -801,7 +801,7 @@ void triMeshOptimize( triMesh* mesh, triS32 format )
 	if (vdata==0)
 		return;
 
-	triS32 texSize = (format&GU_TEXTURE_BITS)!=0?((format&GU_TEXTURE_32BITF)==GU_TEXTURE_32BITF?4:((format&GU_TEXTURE_BITS))):0;
+	triS32 texSize = (format&GU_TEXTURE_BITS)?((format&GU_TEXTURE_32BITF)==GU_TEXTURE_32BITF?4:((format&GU_TEXTURE_BITS))):0;
 	triS32 colSize = (format&GU_COLOR_BITS)?((format&GU_COLOR_8888)==GU_COLOR_8888?4:2):0;
 	triS32 norSize = (format&GU_NORMAL_BITS)?((format&GU_NORMAL_32BITF)==GU_NORMAL_32BITF?4:((format&GU_NORMAL_BITS)>>5)):0;
 	triS32 verSize = (format&GU_VERTEX_BITS)?((format&GU_VERTEX_32BITF)==GU_VERTEX_32BITF?4:((format&GU_VERTEX_BITS)>>7)):0;
@@ -846,16 +846,16 @@ void triMeshOptimize( triMesh* mesh, triS32 format )
 			break;
 		}
 	}
-	/*
+/*
 	triS32 sz = texSize*2;
-	triS32 texPad = ((sz + (colSize-1)) & ~(colSize-1)) - sz;
+	texPad = ((sz + (colSize-1)) & ~(colSize-1)) - sz;
 	sz += colSize + texPad;
-	triS32 colPad = ((sz + (norSize-1)) & ~(norSize-1)) - sz;
+	colPad = ((sz + (norSize-1)) & ~(norSize-1)) - sz;
 	sz += norSize*3 + colPad;
-	triS32 norPad = ((sz + (verSize-1)) & ~(verSize-1)) - sz;
+	norPad = ((sz + (verSize-1)) & ~(verSize-1)) - sz;
 	sz += verSize*3 + norPad;
-	triS32 verPad = _triVertSize( format ) - sz;*/
-
+	verPad = _triVertSize( format ) - sz;
+*/
 	triLogPrint("Optimizing mesh (%x) from %i to %i bytes...\n", mesh, _triVertSize( mesh->vertFormat ) * mesh->numVerts, _triVertSize( format ) * mesh->numVerts );
 	triLogPrint("texSize: %i - texPad: %i\ncolSize: %i - colPad: %i\nnorSize: %i - norPad: %i\nverSize: %i - verPad: %i\nvertexSize: %i\n", texSize, texPad, colSize, colPad, norSize, norPad, verSize, verPad, vertSize );
 	
@@ -905,19 +905,6 @@ void triMeshOptimize( triMesh* mesh, triS32 format )
 			}
 			else
 			{
-				v = (void*)(((triU32)v+1) & ~1);
-				triU16* v16 = (triU16*)v;
-				triU32 color = src->color;
-				triU32 r = ((color >> 24) & 0xFF), g = ((color >> 16) & 0xFF), b = ((color) & 0xFF), a = ((color >> 24) & 0xFF);
-				if (format&GU_COLOR_4444)
-					*v16++ = (triU16)(((a >> 4)<<12) | ((r >> 4)<<8) | ((g >> 4)<<4) | (b >> 4));
-				else
-				if (format&GU_COLOR_5551)
-					*v16++ = (triU16)(((a >> 7)<<15) | ((r >> 3)<<10) | ((g >> 3)<<5) | (b >> 3));
-				else
-				if (format&GU_COLOR_5650)
-					*v16++ = (triU16)(((r >> 3)<<11) | ((g >> 2)<<5) | (b >> 3));
-				v = v16;
 				/*if (format&GU_COLOR_4444)
 					v->color = (triU16)(TORGBA4444(src->color));
 				else

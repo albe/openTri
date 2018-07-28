@@ -1106,10 +1106,10 @@ triS32 triTextureLoad( triChar* filename )
 	return tex->id;
 }
 
-triS32 triTextureLoadStream( stream* s )
+triS32 triTextureLoadSream( stream* s )
 {
 	triChar tname[512];
-	snprintf( tname, 512, "TEX::%s", stream_name( s ) );
+	snprintf( tname, 512, "TEX::stream%i",(int)triTexman.id_counter + 1 );
 	
 	triTexture* tex = (triTexture*)triRefcountRetain( tname );
 

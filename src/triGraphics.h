@@ -5,7 +5,7 @@
  * Copyright (C) 2007 tri
  * Copyright (C) 2007 Alexander Berl 'Raphael' <raphael@fx-world.org>
  *
- * $Id: triGraphics.h 45 2010-02-02 22:24:41Z raphael $
+ * $Id: triGraphics.h 35 2008-09-04 13:35:20Z raphael $
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -398,29 +398,7 @@ void triDrawSprite( triFloat x, triFloat y, triFloat u, triFloat v, triImage* im
   */
 void triBltSprite( triFloat x, triFloat y, triFloat u, triFloat v, triImage* img );
 
-
-/** Render an image centered at position x,y scaled by a factor.
-  * This supports large images > 512x512.
-  * @param x Screen position to center the image at
-  * @param y Screen position to center the image at
-  * @param scale Scale factor to scale image with (> 1.0 is zoom in, < 1.0 is zoom out)
-  * @param img Image to draw
-  */
-void triDrawImageCenterScaled( triFloat x, triFloat y, triFloat scale, triImage* img );
-
-
-/** Render an image scaled by a factor.
-  * This supports large images > 512x512.
-  * @param x Screen position to draw the image to
-  * @param y Screen position to draw the image to
-  * @param width Width of image on screen for scaling. A width < 0 flips image vertically.
-  * @param height Height of image on screen for scaling. A height < 0 flips image horizontally.
-  * @param img Image to draw
-  */
-void triDrawImageScaled( triFloat x, triFloat y, triFloat width, triFloat height, triImage* img );
-
-/** Render an image at full size.
-  * This supports large images > 512x512.
+/** Render an image.
   * @param x Screen position to draw the image to
   * @param y Screen position to draw the image to
   * @param img Image to draw
@@ -428,11 +406,10 @@ void triDrawImageScaled( triFloat x, triFloat y, triFloat width, triFloat height
 void triDrawImage2( triFloat x, triFloat y, triImage* img );
 
 /** Render an image.
-  * This supports large images > 512x512.
   * @param x Screen position to draw the image to
   * @param y Screen position to draw the image to
-  * @param width Width of image on screen for scaling. A width < 0 flips image vertically.
-  * @param height Height of image on screen for scaling. A height < 0 flips image horizontally.
+  * @param width Width of image on screen for scaling
+  * @param height Height of image on screen for scaling
   * @param u0 Vertical image position to start drawing from (sprite sheet/tile map)
   * @param v0 Horizontal image position to start drawing from (sprite sheet/tile map)
   * @param u1 Vertical image position to end drawing at (sprite sheet/tile map)

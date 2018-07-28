@@ -56,6 +56,7 @@ long bufstream_read( stream* s, void* buf, unsigned long size )
 	
 	if (buf==0 || size==0) return(-1);
 	
+	
 	long remain = size;
 	if (f->bsize>0)
 	{

@@ -28,8 +28,6 @@
 #include "triVMath_vfpu.h"
 
 
-triVec4f	triOrigin = { 0.f, 0.f, 0.f, 0.f };
-
 // Create a default camera looking into positive z direction at position (x,y,z)
 triCamera* triCameraCreate( triFloat x, triFloat y, triFloat z )
 {
@@ -68,13 +66,12 @@ void triCameraMove( triCamera* cam, triFloat x, triFloat y, triFloat z )
 }
 
 
-static inline void triCameraDoRotation( triCamera* cam, int pos )
+static inline void triCameraDoRotation( triCamera* cam )
 {
 	triQuatApply( &cam->dir, &cam->rot, &cam->dir );
 	triQuatApply( &cam->up, &cam->rot, &cam->up );
 	triQuatApply( &cam->right, &cam->rot, &cam->right );
-	if (pos)
-		triQuatApply( &cam->pos, &cam->rot, &cam->pos );
+	//triVec4Neg( &cam->pos, triQuatApply( &cam->pos, &cam->rot, triVec4Neg( &cam->pos, &cam->pos ) ) );
 	#ifdef LDEBUG
 	triLogPrint("Camera>\n");
 	triLogPrint("dir: <%.2f, %.2f, %.2f>\n", cam->dir.x, cam->dir.y, cam->dir.z );
@@ -89,22 +86,20 @@ static inline void triCameraDoRotation( triCamera* cam, int pos )
 // rotate camera angle degrees around the axis (x,y,z)
 void triCameraRotate( triCamera* cam, triFloat angle, triVec4f* axis )
 {
-	triQuatFromRotate( &cam->rot, -angle, axis );
+	triQuatFromRotate( &cam->rot, angle, axis );
 	#ifdef LDEBUG
 	triLogPrint("Camera>\n");
 	triLogPrint("rot: <%.2f, %.2f, %.2f, %.2f>\n", cam->rot.x, cam->rot.y, cam->rot.z, cam->rot.w );
 	#endif
-	triCameraDoRotation( cam, 0 );
+	triCameraDoRotation( cam );
 }
 
 
-// rotate camera around center 
 void triCameraRotateAbout( triCamera* cam, triFloat angle, triVec4f* axis, triVec4f* center )
 {
 	//triQuatFromRotate( &cam->rot, angle, axis );
 	triVec4Sub3( &cam->pos, &cam->pos, center );
-	triQuatFromRotate( &cam->rot, -angle, axis );
-	triCameraDoRotation( cam, 1 );
+	triCameraRotate( cam, angle, axis );
 	//triQuatApply( &cam->pos, &cam->rot, &cam->pos );
 	triVec4Add3( &cam->pos, &cam->pos, center );
 	//triCameraDoRotation( cam );
@@ -139,7 +134,7 @@ void triCameraInterpolate( triCamera* cam, triFloat dt )
 		triVec4Lerp( &cam->pos, &cam->pos, &cam->destPos, dt/cam->t );
 		cam->t -= dt;
 	}
-	triCameraDoRotation( cam, 0 );
+	triCameraDoRotation( cam );
 }
 
 
@@ -153,28 +148,23 @@ void triCameraUpdateMatrix( triCamera* cam )
 	t.x.x = cam->right.x;
 	t.y.x = cam->right.y;
 	t.z.x = cam->right.z;
-	t.w.x = 0.f;
 
 	t.x.y = cam->up.x;
 	t.y.y = cam->up.y;
 	t.z.y = cam->up.z;
-	t.w.y = 0.f;
 
 	t.x.z = -cam->dir.x;
 	t.y.z = -cam->dir.y;
 	t.z.z = -cam->dir.z;
-	t.w.z = 0.f;
+
+	t.w.x = -cam->pos.x;
+	t.w.y = -cam->pos.y;
+	t.w.z = -cam->pos.z;
 
 	t.x.w = 0.0f;
 	t.y.w = 0.0f;
 	t.z.w = 0.0f;
 	t.w.w = 1.0f;
-
-	ScePspFVector3 p;
-	p.x = -cam->pos.x;
-	p.y = -cam->pos.y;
-	p.z = -cam->pos.z;
-	gumTranslate(&t,&p);
 
 	sceGumLoadMatrix(&t);
 	sceGumMatrixMode( GU_MODEL );
@@ -185,11 +175,29 @@ void triCameraProject( triVec4* vout, triCamera* cam, triVec4* vin )
 	ScePspFMatrix4 p, v;
 	sceGumMatrixMode( GU_PROJECTION );
 	sceGumStoreMatrix(&p);
-	triCameraUpdateMatrix( cam );
-	sceGumMatrixMode( GU_VIEW );
-	sceGumStoreMatrix(&v);
 	sceGumMatrixMode( GU_MODEL );
 	
+	v.x.x = cam->right.x;
+	v.y.x = cam->right.y;
+	v.z.x = cam->right.z;
+
+	v.x.y = cam->up.x;
+	v.y.y = cam->up.y;
+	v.z.y = cam->up.z;
+
+	v.x.z = -cam->dir.x;
+	v.y.z = -cam->dir.y;
+	v.z.z = -cam->dir.z;
+
+	v.w.x = -cam->pos.x;
+	v.w.y = -cam->pos.y;
+	v.w.z = -cam->pos.z;
+
+	v.x.w = 0.0f;
+	v.y.w = 0.0f;
+	v.z.w = 0.0f;
+	v.w.w = 1.0f;
+
 	gumMultMatrix( &p, &p, &v );
 	__asm__ (
 		".set			push\n"					// save assembler option
@@ -219,10 +227,28 @@ void triCameraUnproject( triVec4* vout, triCamera* cam, triVec4* vin )
 	ScePspFMatrix4 p, v;
 	sceGumMatrixMode( GU_PROJECTION );
 	sceGumStoreMatrix(&p);
-	triCameraUpdateMatrix( cam );
-	sceGumMatrixMode( GU_VIEW );
-	sceGumStoreMatrix(&v);
 	sceGumMatrixMode( GU_MODEL );
+	
+	v.x.x = cam->right.x;
+	v.y.x = cam->right.y;
+	v.z.x = cam->right.z;
+
+	v.x.y = cam->up.x;
+	v.y.y = cam->up.y;
+	v.z.y = cam->up.z;
+
+	v.x.z = -cam->dir.x;
+	v.y.z = -cam->dir.y;
+	v.z.z = -cam->dir.z;
+
+	v.w.x = -cam->pos.x;
+	v.w.y = -cam->pos.y;
+	v.w.z = -cam->pos.z;
+
+	v.x.w = 0.0f;
+	v.y.w = 0.0f;
+	v.z.w = 0.0f;
+	v.w.w = 1.0f;
 
 	gumMultMatrix( &p, &p, &v );
 	gumFullInverse( &p, &p );

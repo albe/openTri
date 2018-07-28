@@ -128,7 +128,7 @@ typedef struct afstream_struct {
 	FILE*	fd;
 	#endif
 
-	char	data[BFILE_BUFFER_SIZE];		// Read/Write buffer
+	char	data[BFILE_BUFFER_SIZE*2];		// Doublebuffered input buffer
 	char*	cur;
 	int		buf;							// Current buffer number
 	

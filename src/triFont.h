@@ -4,9 +4,8 @@
  *
  * Copyright (C) 2007 tri
  * Copyright (C) 2007 David Perry 'InsertWittyName' <tias_dp@hotmail.com>
- * Copyright (C) 2008, 2010 Alexander Berl 'Raphael' <raphael@fx-world.org>
  *
- * $Id:$
+ * $Id: $
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -73,30 +72,12 @@ typedef struct
 	triUChar map[256]; /**<  Character map */
 	Glyph glyph[256]; /**<  Character glyphs */
 	triSInt	fontHeight;
-	triSInt	fixedWidth; /**<  Width for mono spaced output */
-	triSInt fixedHeight; /**< Height for fixed line height */
-	triSInt	letterSpacing; /**< Spacing adjustment for all characters */
-	triSInt wordSpacing; /**< Spacing adjustment for all whitespaces */
-	triFloat justify; /**< Justify adjustment for the current line */
 } triFont;
 
 enum triFontSizeType
 {
 	TRI_FONT_SIZE_PIXELS = 0,
 	TRI_FONT_SIZE_POINTS
-};
-
-enum triFontAlignMode
-{
-	TRI_FONT_ALIGN_LEFT = 0x0,
-	TRI_FONT_ALIGN_CENTER = 0x1,
-	TRI_FONT_ALIGN_RIGHT = 0x2,
-	TRI_FONT_ALIGN_JUSTIFY = 0x3,
-	TRI_FONT_HALIGN = 0xF,
-	TRI_FONT_ALIGN_TOP = 0x00,
-	TRI_FONT_ALIGN_MIDDLE = 0x10,
-	TRI_FONT_ALIGN_BOTTOM = 0x20,
-	TRI_FONT_VALIGN = 0xF0
 };
 
 /**
@@ -116,8 +97,11 @@ triVoid triFontShutdown(void);
  * Load a TrueType font.
  *
  * @param filename - Path to the font
+ *
  * @param size - Size to set the font to (in points)
+ *
  * @param textureSize - Size of the bitmap texture to create (must be power2)
+ *
  * @param location - One of ::triTextureLocation
  *
  * @returns A ::triFont struct
@@ -145,34 +129,20 @@ triFont* triFontLoadTRF(const triChar *filename);
  * Save the specified font to a triFont file.
  *
  * @param font - A valid ::triFont
+ *
  * @param filename - The file to save to
  */
 triVoid triFontSaveTRF(triFont *font, triChar *filename);
 
 /**
- * Set a font mono spaced or not (default).
+ * Make a font mono spaced.
  *
  * @param font - A valid ::triFont or 0 for inbuilt debug font
- * @param width - Width to make all glyphs, 0 to make proportional width or < 0 to offset autowidth by that amount+1
+ *
+ * @param width - Width to make all glyphs, 0 to auto decide or < 0 to offset autowidth by that amount
  */
-triVoid triFontSetMono( triFont* font, triS32 width );
+triVoid triFontMakeMono( triFont* font, triS32 width );
 
-/**
- * Set a spacing values.
- *
- * @param font - A valid ::triFont or 0 for inbuilt debug font
- * @param letter - Spacing to apply to all glyphs: < 0 for tighter spacing, > 0 for wider spacing, 0 for normal spacing (default)
- * @param word - Spacing to apply to all whitespace glyphs in addition to letterspacing: < 0 for tighter spacing, > 0 for wider spacing, 0 for normal spacing (default)
- */
-triVoid triFontSetSpacing( triFont* font, triS32 letter, triS32 word );
-
-/**
- * Set line height.
- *
- * @param font - A valid ::triFont or 0 for inbuilt debug font
- * @param height - Height of each line in pixels. 0 for default height.
- */
-triVoid triFontSetLineheight( triFont* font, triS32 height );
 
 /**
  * Activate the specified font.
@@ -185,8 +155,11 @@ triVoid triFontActivate(triFont *font);
  * Draw text along the baseline starting at x, y.
  *
  * @param x - X position on screen
+ *
  * @param y - Y position on screen
+ *
  * @param color - Text color
+ *
  * @param text - Text to draw
  *
  * @returns The total width of the largest line in the text drawn.
@@ -197,53 +170,16 @@ triSInt triFontPrint(triFloat x, triFloat y, triUInt color, const triChar *text)
  * Draw text along the baseline starting at x, y (with formatting).
  *
  * @param x - X position on screen
+ *
  * @param y - Y position on screen
+ *
  * @param color - Text color
+ *
  * @param text - Text to draw
  *
  * @returns The total width of the largest line in the text drawn.
  */
 triSInt triFontPrintf(triFloat x, triFloat y, triUInt color, const triChar *text, ...);
-
-
-/**
- * Draw text along the baseline aligned within the box starting at x, y.
- *
- * @param x - X position on screen
- * @param y - Y position on screen
- * @param width - The width of the box to align within
- * @param height - The height of the box to align within
- * @param color - Text color
- * @param align - The align method to apply (see triFontAlignMode)
- * @param text - Text to draw
- *
- * @returns The total width of the largest line in the text drawn.
- */
-triSInt triFontPrintAlign(triFloat x, triFloat y, triSInt width, triSInt height, triUInt color, enum triFontAlignMode align, const triChar *text);
-
-/**
- * Draw text along the baseline aligned within the box starting at x, y (with formatting).
- *
- * @param x - X position on screen
- * @param y - Y position on screen
- * @param width - The width of the box to align within
- * @param height - The height of the box to align within
- * @param color - Text color
- * @param align - The align method to apply (see triFontAlignMode)
- * @param text - Text to draw
- *
- * @returns The total width of the largest line in the text drawn.
- */
-triSInt triFontPrintAlignf(triFloat x, triFloat y, triSInt width, triSInt height, triUInt color, enum triFontAlignMode align, const triChar *text, ...);
-
-/**
- * Measure height of a text if it were to be drawn
- *
- * @param text - Text to measure
- *
- * @returns The total height of the text.
- */
-triSInt triFontMeasureTextHeight(const triChar *text);
 
 /**
  * Measure a length of text if it were to be drawn
@@ -253,15 +189,6 @@ triSInt triFontMeasureTextHeight(const triChar *text);
  * @returns The total width of the largest line in the text.
  */
 triSInt triFontMeasureText(const triChar *text);
-
-/**
- * Measure a length of the current line of text if it were to be drawn
- *
- * @param text - Text to measure
- *
- * @returns The total width of the current line in the text.
- */
-triSInt triFontMeasureLine(const triChar *text);
 
 /** @} */
 

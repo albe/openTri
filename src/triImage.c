@@ -2680,18 +2680,6 @@ void triImageAnimationSaveTri( triChar* name, triImageAnimation* ani, triS32 fla
 
 
 #ifdef TRI_SUPPORT_PNG
-
-triVoid user_write_fn(png_structp png_ptr, png_bytep ptr, png_size_t size)
-{
-	stream* s = (stream*)png_get_io_ptr( png_ptr );
-	stream_write( s, ptr, size );
-}
-
-triVoid user_flush_fn(png_structp png_ptr)
-{
-	//stream* s = (stream*)png_get_io_ptr( png_ptr );
-}
-
 triVoid triImageSavePng( triChar* name, triImage *img, triS32 saveAlpha )
 {
 	if (img==0) return;
@@ -2721,7 +2709,6 @@ triVoid triImageSavePng( triChar* name, triImage *img, triS32 saveAlpha )
 	if (!fp) return;
 	
 	png_init_io(png_ptr, fp);
-	//png_set_write_fn(png_ptr, (png_voidp)s, user_write_fn, user_flush_fn);
 	png_set_IHDR(png_ptr, info_ptr, img->width, img->height,
 		8, col_type, PNG_INTERLACE_NONE,
 		PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);

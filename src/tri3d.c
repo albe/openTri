@@ -75,10 +75,10 @@ void tri3dInit()
 	triEnable(TRI_DEPTH_WRITE);
 	sceGuClearDepth(0x0);
 	
-	sceGuDisable(GU_LIGHTING);
-	sceGuFrontFace(GU_CW);
-	sceGuEnable(GU_CULL_FACE);
+	sceGuFrontFace(GU_CCW);
 	sceGuShadeModel(GU_SMOOTH);
+	sceGuDisable(GU_BLEND);
+	sceGuEnable(GU_CULL_FACE);
 	sceGuEnable(GU_TEXTURE_2D);
 	sceGuTexWrap(GU_REPEAT,GU_REPEAT);
 	sceGuEnable(GU_CLIP_PLANES);
@@ -88,7 +88,6 @@ void tri3dInit()
 	sceGumMatrixMode(GU_MODEL);
 	sceGumLoadIdentity();
 	tri3dPerspective( 75.0f );
-	triRendertoscreen();
 	triEnd();
 }
 

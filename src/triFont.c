@@ -4,9 +4,9 @@
  *
  * Copyright (C) 2007 tri
  * Copyright (C) 2007 David Perry 'InsertWittyName' <tias_dp@hotmail.com>
- * Copyright (C) 2007, 2010 Alexander Berl 'Raphael' <raphael@fx-world.org>
+ * Copyright (C) 2007 Alexander Berl 'Raphael' <raphael@fx-world.org>
  *
- * $Id:$
+ * $Id: $
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -447,12 +447,9 @@ triFont triDebugFont = {
 				{ 0, 0, 0, 0, 0, 0, 0, 0 },
 				{ 0, 0, 0, 0, 0, 0, 0, 0 }
 			},
-	.fontHeight = 6,
-	.fixedWidth = 0
+	.fontHeight = 6
 };
 
-
-triS32	triFontWidth = 0;
 
 typedef struct {
 	triChar		magic[8];	// "triFont "
@@ -476,7 +473,9 @@ static const triChar *TRI_FONT_CHARSET =
     	"@#$%^&*+-()[]{}<>/\\|~`\""
 ;
 
-static triUInt __attribute__((aligned(16))) clut[16];
+// Store the clut on the framebuffer's first (or second in 16bit mode) line's padding area
+static triUInt* clut = (triUInt*)(0x44000000 + 480*4);
+//static triUInt __attribute__((aligned(16))) clut[16];
 
 triFont* triActiveFont = &triDebugFont;
 
@@ -505,7 +504,6 @@ static triS32 next_pow2(triU32 w)
 	return(w+1);
 }
 
-#ifdef TRI_SUPPORT_FT
 static triSInt triFontSwizzle(triFont *font)
 {
 	triSInt byteWidth = font->texSize/2;
@@ -558,6 +556,7 @@ static triSInt triFontSwizzle(triFont *font)
 	return 1;
 }
 
+#ifdef TRI_SUPPORT_FT
 triFont* triFontLoad(const triChar *filename, triUInt fontSize, enum triFontSizeType fontSizeType, triUInt textureSize, enum triFontLocation location)
 {
 	FT_Library library;
@@ -764,10 +763,6 @@ triFont* triFontLoad(const triChar *filename, triUInt fontSize, enum triFontSize
 		used += (gi[n].glyph.width * gi[n].glyph.height);
 	}
 
-	font->fixedWidth = 0;
-	font->fixedHeight = 0;
-	font->letterSpacing = 0;
-	font->wordSpacing = 0;
 	font->texHeight = (y + ynext + 7)&~7;
 	if (font->texHeight > font->texSize) font->texHeight = font->texSize;
 	
@@ -960,10 +955,6 @@ triFont* triFontLoadTRF(const triChar *filename)
 	font->texHeight = header.height;
 	font->location = TRI_RAM;
 	font->fontHeight = header.fontHeight;
-	font->fixedWidth = 0;
-	font->fixedHeight = 0;
-	font->letterSpacing = 0;
-	font->wordSpacing = 0;
 	font->texture = triMalloc(header.dataSize);
 	memcpy(font->map, header.map, 256*sizeof(triUChar));
 	memcpy(font->glyph, header.glyph, 256*sizeof(Glyph));
@@ -974,20 +965,14 @@ triFont* triFontLoadTRF(const triChar *filename)
 }
 
 
-triVoid triFontSetMono( triFont* font, triS32 width )
+void triFontMakeMono( triFont* font, triS32 width )
 {
 	if (!font)
 	{
 		font = &triDebugFont;
 	}
 	
-	if (width==0)
-	{
-		font->fixedWidth = 0;
-		return;
-	}
-	
-	if (width<0)
+	if (width<=0)
 	{
 		int i = 0;
 		int max = 0;
@@ -995,36 +980,22 @@ triVoid triFontSetMono( triFont* font, triS32 width )
 		{
 			if (font->glyph[i].width>max) max = font->glyph[i].width;
 		}
-		width += max + 1;
+		width += max;
 	}
 	
-	font->fixedWidth = width;
-}
-
-triVoid triFontSetSpacing( triFont* font, triS32 letter, triS32 word )
-{
-	if (!font)
+	int i = 0;
+	for (;i<256;i++)
 	{
-		font = &triDebugFont;
+		Glyph* g = &font->glyph[i];
+		if (g->advance>0)
+		{
+			triS32 xoff = (width - g->width)/2;
+			g->left += xoff;
+			g->advance = width;
+		}
 	}
-	
-	if (letter < -32) letter = -32;
-	if (letter > 32) letter = 32;
-	
-	font->letterSpacing = letter;
-	font->wordSpacing = word;
 }
 
-
-triVoid triFontSetLineheight( triFont* font, triS32 height )
-{
-	if (!font)
-	{
-		font = &triDebugFont;
-	}
-
-	font->fixedHeight = height;
-}
 
 triBool triFontInit(void)
 {
@@ -1034,16 +1005,16 @@ triBool triFontInit(void)
 	{
 		clut[n] = ((n*17) << 24) | 0xffffff;
 	}
-	sceKernelDcacheWritebackRange(clut,16*4);
+	
 	return 1;
 }
 
-triVoid triFontShutdown(void)
+void triFontShutdown(void)
 {
 	//Nothing yet
 }
 
-triVoid triFontActivate(triFont *font)
+void triFontActivate(triFont *font)
 {
 	if(!font)
 	{
@@ -1056,126 +1027,31 @@ triVoid triFontActivate(triFont *font)
 	sceGuEnable(GU_TEXTURE_2D);
 	sceGuBlendFunc(GU_ADD,GU_SRC_ALPHA,GU_ONE_MINUS_SRC_ALPHA,0,0);
 	sceGuEnable(GU_BLEND);
+	sceGuDisable(GU_LIGHTING);
 	sceGuDisable(GU_COLOR_TEST);
 	sceGuTexMode(GU_PSM_T4, 0, 0, 1);
 	sceGuTexImage(0, font->texSize, next_pow2(font->texHeight), font->texSize, font->texture);
 	sceGuTexFunc(GU_TFX_MODULATE, GU_TCC_RGBA);
+	sceGuTexOffset(0.0f, 0.0f);
 	sceGuTexWrap(GU_REPEAT, GU_REPEAT);
 	sceGuTexFilter(GU_NEAREST, GU_NEAREST);
 	triActiveFont = font;
 }
 
-triSInt triFontPrintAlignf(triFloat x, triFloat y, triSInt width, triSInt height, triUInt color, enum triFontAlignMode align, const triChar *text, ...)
+triSInt triFontPrintf(triFloat x, triFloat y, triUInt color, const triChar *text, ...)
 {
-	triChar buffer[512];
+	triChar buffer[256];
 	va_list ap;
 	
 	va_start(ap, text);
-	vsnprintf(buffer, 512, text, ap);
+	vsnprintf(buffer, 256, text, ap);
 	va_end(ap);
-	buffer[511] = 0;
+	buffer[255] = 0;
 	
-	return triFontPrintAlign(x, y, width, height, color, align, buffer);
+	return triFontPrint(x, y, color, buffer);
 }
 
-static triSInt triFontCountUntil( const triChar *text, triChar what, triChar until )
-{
-	triSInt count = 0;
-	while (*text && *text!=until)
-	{
-		if (what==0 || *text==what)
-			count++;
-		text++;
-	}
-	return count;
-}
-
-static triSInt triFontCountWhitespacesLine( const triChar *text )
-{
-	return triFontCountUntil( text, ' ', '\n' );
-}
-
-static triSInt triFontCountCharsLine( const triChar *text )
-{
-	return triFontCountUntil( text, 0, '\n' );
-}
-
-static triSInt triFontCountLines( const triChar *text )
-{
-	return triFontCountUntil( text, '\n', 0 ) + 1;
-}
-
-// Return the aligning position adjustment and set the justify parameter for the current line of text
-static triSInt triFontHAlign( triSInt width, enum triFontAlignMode align, const triChar *text )
-{
-	switch (align&TRI_FONT_HALIGN)
-	{
-		case TRI_FONT_ALIGN_LEFT:
-			triActiveFont->justify = 0.f;
-			return 0;
-			break;
-		case TRI_FONT_ALIGN_CENTER:
-			{
-				triActiveFont->justify = 0.f;
-				triSInt twidth = triFontMeasureLine( text );
-				return (width - twidth)/2;
-			}
-			break;
-		case TRI_FONT_ALIGN_RIGHT:
-			{
-				triActiveFont->justify = 0.f;
-				triSInt twidth = triFontMeasureLine( text );
-				return width - twidth;
-			}
-			break;
-		case TRI_FONT_ALIGN_JUSTIFY:
-			{
-				triSInt twidth = triFontMeasureLine( text );
-				if (width < twidth)
-					return 0;
-				triSInt whitespaces = triFontCountWhitespacesLine( text );
-				if (whitespaces > 0)
-					triActiveFont->justify = (width - twidth)*1.f / whitespaces;
-				else
-				{
-					triSInt chars = triFontCountCharsLine( text );
-					if (chars > 0)
-						triActiveFont->justify = (width - twidth)*-1.f / chars;
-				}
-				return 0;
-			}
-			break;
-		default:
-			return 0;
-	}
-}
-
-static triSInt triFontVAlign( triSInt height, enum triFontAlignMode align, const triChar *text )
-{
-	switch (align&TRI_FONT_VALIGN)
-	{
-		case TRI_FONT_ALIGN_TOP:
-				return 0;
-			break;
-		case TRI_FONT_ALIGN_MIDDLE:
-			{
-				triSInt theight = triFontMeasureTextHeight( text );
-				return (height - theight)/2;
-			}
-			break;
-		case TRI_FONT_ALIGN_BOTTOM:
-			{
-				triSInt theight = triFontMeasureTextHeight( text );
-				return height - theight;
-			}
-			break;
-		default:
-			return 0;
-	}
-}
-
-
-triSInt triFontPrintAlign(triFloat x, triFloat y, triSInt width, triSInt height, triUInt color, enum triFontAlignMode align, const triChar *text)
+triSInt triFontPrint(triFloat x, triFloat y, triUInt color, const triChar *text)
 {
 	if(!triActiveFont)
 	{
@@ -1193,7 +1069,7 @@ triSInt triFontPrintAlign(triFloat x, triFloat y, triSInt width, triSInt height,
 	} FontVertex;
 
 	triSInt i, length;
-	FontVertex *v, *v0;
+	FontVertex *v, *v0, *v1;
 	
 	if((length = strlen(text)) == 0)
 		return 0;
@@ -1202,105 +1078,44 @@ triSInt triFontPrintAlign(triFloat x, triFloat y, triSInt width, triSInt height,
 	v0 = v;
 	
 	triFloat xstart = x;
-	triFloat ystart = y;
-	triSInt verts = 0;
 	triSInt max = 0;
-	triFloat twidth;
-	triFloat off;
-	x += triFontHAlign( width, align, text );
-	y += triFontVAlign( height, align, text );
-	
 	for(i = 0; i < length; i++)
 	{
-		if (text[i]==' ')
-		{
-			if (triActiveFont->fixedWidth>0)
-			{
-				x += triActiveFont->fixedWidth;
-			}
-			else
-			{
-				Glyph *glyph = triActiveFont->glyph + triActiveFont->map[' '];
-				x += glyph->advance + triActiveFont->letterSpacing;
-			}
-			x += triActiveFont->wordSpacing;
-			if (triActiveFont->justify > 0)
-				x += triActiveFont->justify;
-			else
-				x -= triActiveFont->justify;
-		}
-		else
-		if (text[i]=='\t')
-		{
-			Glyph *glyph = triActiveFont->glyph + triActiveFont->map[' '];
-			if (triActiveFont->fixedWidth>0)
-				twidth = triActiveFont->fixedWidth*4;
-			else
-				twidth = (glyph->advance + triActiveFont->letterSpacing)*4;
-			x = ((triSInt)(x / twidth) + 1) * twidth;
-		}
-		else
 		if (text[i]=='\n')
 		{
 			if (max<x) max = (triSInt)x;
-			x = xstart + triFontHAlign( width, align, &text[i+1] );
-			if (triActiveFont->fixedHeight>0)
-				y += triActiveFont->fixedHeight;
-			else
-				y += triActiveFont->fontHeight+3;
+			x = xstart;
+			y += triActiveFont->fontHeight+3;
 		}
 		else
 		{
 			Glyph *glyph = triActiveFont->glyph + triActiveFont->map[text[i] & 0xff];
-			if (triActiveFont->fixedWidth>0)
-			{
-				twidth = triActiveFont->fixedWidth;
-				if (triActiveFont->justify < 0)
-					twidth -= triActiveFont->justify;
-				off = (twidth - glyph->width)/2.f;
-			}
-			else
-			{
-				twidth = glyph->advance + triActiveFont->letterSpacing;
-				if (triActiveFont->justify < 0)
-					twidth -= triActiveFont->justify;
-				off = 0.f;
-			}
 			
-			//if ((y - glyph->top + glyph->height > ystart) && ((height <= 0) || (y < ystart + height)) && ((width <= 0) || (x < xstart + width)))
-			{
-				v0->u = glyph->x;
-				v0->v = glyph->y;
-				v0->color = color;
-				v0->x = (triS16)x + glyph->left + off;
-				v0->y = (triS16)y - glyph->top;
-				v0->z = 0;
-				v0++;
-				
-				v0->u = glyph->x + glyph->width;
-				v0->v = glyph->y + glyph->height;
-				v0->color = color;
-				v0->x = (triS16)x + glyph->left + off + glyph->width;
-				v0->y = (triS16)y - glyph->top + glyph->height;
-				v0->z = 0;
-				v0++;
-				
-				verts+=2;
-			}
-
-			x += twidth;
+			v1 = v0+1;
+			
+			v0->u = glyph->x;
+			v0->v = glyph->y;
+			v0->color = color;
+			v0->x = (triU16)x + glyph->left;
+			v0->y = (triU16)y - glyph->top;
+			v0->z = 0;
+	
+			v1->u = glyph->x + glyph->width;
+			v1->v = glyph->y + glyph->height;
+			v1->color = color;
+			v1->x = v0->x + glyph->width;
+			v1->y = v0->y + glyph->height;
+			v1->z = 0;
+	
+			v0 += 2;
+			x += glyph->advance;
 		}
 	}
 	if (max<x) max = x;
-	triActiveFont->justify = 0.f;
 
 	triDisable(TRI_DEPTH_TEST);
 	triDisable(TRI_DEPTH_MASK);
-	if (width <= 0) width = 480; else width += xstart;
-	if (height <= 0) height = 272; else height += ystart;
-	triSetClip(xstart, ystart, width, height);
-	sceGuDrawArray(GU_SPRITES, GU_COLOR_8888|GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D, verts, 0, v);
-	triResetClip();
+	sceGuDrawArray(GU_SPRITES, GU_COLOR_8888|GU_TEXTURE_16BIT|GU_VERTEX_16BIT|GU_TRANSFORM_2D, length * 2, 0, v);
 	triEnable(TRI_DEPTH_MASK);	// Need triEnable calls to make sure depthbuffer is available
 	triEnable(TRI_DEPTH_TEST);
 	
@@ -1308,25 +1123,7 @@ triSInt triFontPrintAlign(triFloat x, triFloat y, triSInt width, triSInt height,
 }
 
 
-triSInt triFontPrintf(triFloat x, triFloat y, triUInt color, const triChar *text, ...)
-{
-	triChar buffer[512];
-	va_list ap;
-	
-	va_start(ap, text);
-	vsnprintf(buffer, 512, text, ap);
-	va_end(ap);
-	buffer[511] = 0;
-	
-	return triFontPrint(x, y, color, buffer);
-}
-
-triSInt triFontPrint(triFloat x, triFloat y, triUInt color, const triChar *text)
-{
-	return triFontPrintAlign( x, y, 0, 0, color, TRI_FONT_ALIGN_LEFT, text );
-}
-
-triSInt triFontMeasureUntil(const triChar *text, triChar breakChar)
+triSInt triFontMeasureText(const triChar *text)
 {
 	if(!triActiveFont)
 	{
@@ -1338,23 +1135,8 @@ triSInt triFontMeasureUntil(const triChar *text, triChar breakChar)
 
 	triSInt x = 0;
 	triSInt max = 0;
-	while(*text && *text!=breakChar)
+	while(*text)
 	{
-		if (*text=='\t')
-		{
-			triSInt width;
-			if (triActiveFont->fixedWidth>0)
-			{
-				width = triActiveFont->fixedWidth*4;
-			}
-			else
-			{
-				Glyph *glyph = triActiveFont->glyph + triActiveFont->map[' '];
-				width = (glyph->advance + triActiveFont->letterSpacing)*4;
-			}
-			x = ((triSInt)(x / width) + 1) * width;
-		}
-		else
 		if (*text=='\n')
 		{
 			if (max<x) max = x;
@@ -1362,40 +1144,12 @@ triSInt triFontMeasureUntil(const triChar *text, triChar breakChar)
 		}
 		else
 		{
-			if (triActiveFont->fixedWidth>0)
-			{
-				x += triActiveFont->fixedWidth;
-			}
-			else
-			{
-				Glyph *glyph = triActiveFont->glyph + triActiveFont->map[*text & 0xff];
-				x += glyph->advance + triActiveFont->letterSpacing;
-			}
-			if (*text==' ')
-				x += triActiveFont->wordSpacing;
+			Glyph *glyph = triActiveFont->glyph + triActiveFont->map[*text++ & 0xff];
+			x += glyph->advance;
 		}
-		text++;
 	}
 	if (max<x) max = x;
 	
 	return max;
 }
 
-triSInt triFontMeasureTextHeight(const triChar *text)
-{
-	triSInt lines = triFontCountLines(text);
-	if (triActiveFont->fixedHeight>0)
-		return lines * triActiveFont->fixedHeight;
-	else
-		return lines * (triActiveFont->fontHeight+3);
-}
-
-triSInt triFontMeasureText(const triChar *text)
-{
-	return triFontMeasureUntil( text, 0 );
-}
-
-triSInt triFontMeasureLine(const triChar *text)
-{
-	return triFontMeasureUntil( text, '\n' );
-}

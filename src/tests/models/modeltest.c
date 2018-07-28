@@ -82,7 +82,7 @@ int main(int argc, char **argv)
 	triInputInit();
 	triModelManagerInit();
 	
-	//triFontMakeMono( 0, 7 );
+	triFontMakeMono( 0, 7 );
 	
 	triModel Model[3];
 
@@ -245,7 +245,7 @@ int main(int argc, char **argv)
 	triVec2f*	pStick	= triInputGetStick ();
 
 	tri3dPerspective( 45.0f );
-	sceGuFrontFace(GU_CCW);
+	//sceGuFrontFace		(GU_CW);
 	triClear( 0xFF0000 );
 
 	//sceGuEnable(GU_LIGHTING);
@@ -283,19 +283,19 @@ int main(int argc, char **argv)
 		}
 		if (triInputHeld (PSP_CTRL_UP))
 		{
-			triCameraRotateAbout( cam, SCE_DEG_TO_RAD(3.2f), &triXAxis, &triOrigin );
+			triCameraRotate( cam, SCE_DEG_TO_RAD(3.2f), &triXAxis );
 		}
 		if (triInputHeld (PSP_CTRL_DOWN))
 		{
-			triCameraRotateAbout( cam, SCE_DEG_TO_RAD(-3.2f), &triXAxis, &triOrigin );
+			triCameraRotate( cam, SCE_DEG_TO_RAD(-3.2f), &triXAxis );
 		}
 		if (triInputHeld (PSP_CTRL_LEFT))
 		{
-			triCameraRotateAbout( cam, SCE_DEG_TO_RAD(3.2f), &triYAxis, &triOrigin );
+			triCameraRotate( cam, SCE_DEG_TO_RAD(3.2f), &triYAxis );
 		}
 		if (triInputHeld (PSP_CTRL_RIGHT))
 		{
-			triCameraRotateAbout( cam, SCE_DEG_TO_RAD(-3.2f), &triYAxis, &triOrigin );
+			triCameraRotate( cam, SCE_DEG_TO_RAD(-3.2f), &triYAxis );
 		}
 		
 		if (triInputHeld (PSP_CTRL_TRIANGLE))
@@ -349,7 +349,7 @@ int main(int argc, char **argv)
 			sceGumLoadIdentity	();
 		}
 
-		triModelRender( &Model[model] );
+		//triModelRender( &Model[model] );
 		/*
 		sceGumPushMatrix ();
 
@@ -385,13 +385,13 @@ int main(int argc, char **argv)
 		sceGumPopMatrix ();
 		*/
 		frames++;
-		
+		/*
 		triFontActivate(0);
-		triFontPrintf( 0, 0, 0xFFFFFFFF, "FPS: %.2f - MAX: %.2f - MIN: %.2f", triFps(), triFpsMax(), triFpsMin() );
+		triFontPrintf( 0,0, 0xFFFFFFFF, "FPS: %.2f - MAX: %.2f - MIN: %.2f", triFps(), triFpsMax(), triFpsMin() );
 		triFontPrintf( 0,10, 0xFFFFFFFF, "CPU: %.2f%% - GPU: %.2f%%", triCPULoad(), triGPULoad() );
 		triFontPrintf( 0,20, 0xFFFFFFFF, "AA mode: %s", enableAA==0?"off":"on" );
 		triFontPrintf( 0,30, 0xFFFFFFFF, "VRAM: %i - largest: %i", triVMemavail()/1024, triVLargestblock()/1024 );
-		triFontPrintf( 0,40, 0xFFFFFFFF, "CAM: <%.1f, %.1f, %.1f> -> <%.1f, %1.f, %1.f>", cam->pos.x, cam->pos.y, cam->pos.z, cam->dir.x, cam->dir.y, cam->dir.z);
+		*/
 		triSwapbuffers();
 	}
 	

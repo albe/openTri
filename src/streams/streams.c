@@ -130,30 +130,28 @@ void* memcpy_vfpu( void* dst, void* src, unsigned int size )
 					);
 			}
 			if (size>16)
+			// Invalidate the last cache line were the max remaining 63 bytes are
+			asm(".set	push\n"					// save assembler option
+				".set	noreorder\n"			// suppress reordering
+				"cache	0x1B, 0(%0)\n"
+				"sync\n"
+				".set	pop\n"					// restore assembler option
+				::"r"(dst64a));
+			while (size>=16)
 			{
-				// Invalidate the last cache line where the max remaining 63 bytes are
 				asm(".set	push\n"					// save assembler option
 					".set	noreorder\n"			// suppress reordering
-					"cache	0x1B, 0(%0)\n"
-					"sync\n"
+					"lv.q	c000, 0(%1)\n"
+					"sv.q	c000, 0(%0), wb\n"
+					// Lots of variable updates... but get hidden in sv.q latency anyway
+					"addiu	%2, %2, -16\n"
+					"addiu	%1, %1, 16\n"
+					"addiu	%0, %0, 16\n"
 					".set	pop\n"					// restore assembler option
-					::"r"(dst64a));
-				while (size>=16)
-				{
-					asm(".set	push\n"					// save assembler option
-						".set	noreorder\n"			// suppress reordering
-						"lv.q	c000, 0(%1)\n"
-						"sv.q	c000, 0(%0), wb\n"
-						// Lots of variable updates... but get hidden in sv.q latency anyway
-						"addiu	%2, %2, -16\n"
-						"addiu	%1, %1, 16\n"
-						"addiu	%0, %0, 16\n"
-						".set	pop\n"					// restore assembler option
-						:"+r"(udst8),"+r"(src8),"+r"(size)
-						:
-						:"memory"
-						);
-				}
+					:"+r"(udst8),"+r"(src8),"+r"(size)
+					:
+					:"memory"
+					);
 			}
 			asm(".set	push\n"					// save assembler option
 				".set	noreorder\n"			// suppress reordering
@@ -162,7 +160,7 @@ void* memcpy_vfpu( void* dst, void* src, unsigned int size )
 				);
 			dst8 = (u8*)((u32)udst8 & ~0x40000000);
 			break;
-		// src is only qword unaligned but word aligned? We can at least use ulv.q
+		// src is only word unaligned? We can at least use ulv.q
 		case 4:
 		case 8:
 		case 12:
@@ -192,7 +190,7 @@ void* memcpy_vfpu( void* dst, void* src, unsigned int size )
 					);
 			}
 			if (size>16)
-			// Invalidate the last cache line where the max remaining 63 bytes are
+			// Invalidate the last cache line were the max remaining 63 bytes are
 			asm(".set	push\n"					// save assembler option
 				".set	noreorder\n"			// suppress reordering
 				"cache	0x1B, 0(%0)\n"
@@ -283,10 +281,10 @@ void* memcpy_vfpu( void* dst, void* src, unsigned int size )
 					"mtv	$11, s033\n"
 					
 					"sync\n"
-					"sv.q 	c000,  0(%0), wb\n"
-					"sv.q 	c010, 16(%0), wb\n"
-					"sv.q 	c020, 32(%0), wb\n"
-					"sv.q 	c030, 48(%0), wb\n"
+					"sv.q 	c000,  0(%0)\n"
+					"sv.q 	c010, 16(%0)\n"
+					"sv.q 	c020, 32(%0)\n"
+					"sv.q 	c030, 48(%0)\n"
 					// Lots of variable updates... but get hidden in sv.q latency anyway
 					"addiu	%3, %3, -64\n"
 					"addiu	%2, %2, 64\n"
@@ -299,7 +297,7 @@ void* memcpy_vfpu( void* dst, void* src, unsigned int size )
 					);
 			}
 			if (size>16)
-			// Invalidate the last cache line where the max remaining 63 bytes are
+			// Invalidate the last cache line were the max remaining 63 bytes are
 			asm(".set	push\n"					// save assembler option
 				".set	noreorder\n"			// suppress reordering
 				"cache	0x1B, 0(%0)\n"
@@ -416,9 +414,9 @@ stream* stream_afopen( char* name, long flags )
 	f->fpos = 0;
 	s->_stream->size = f->fsize;
 	sceIoLseek( f->fd, 0, PSP_SEEK_SET );
-	if (flags & (STREAM_RDONLY|STREAM_RDWR))
+	if (flags & STREAM_RDONLY)
 	{
-		sceIoReadAsync( f->fd, f->data, BFILE_BUFFER_SIZE );
+		sceIoReadAsync( f->fd, f->data, BFILE_BUFFER_SIZE*2 );
 		f->wait = BFILE_WAIT_READ;
 	}
 	return(s);

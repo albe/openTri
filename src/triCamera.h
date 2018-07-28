@@ -31,9 +31,6 @@
 /** @defgroup triCamera Camera control
  *  @{
  */
- 
- 
-extern triVec4f	triOrigin;
 
 typedef struct
 {

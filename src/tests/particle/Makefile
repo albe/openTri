@@ -14,7 +14,5 @@ BUILD_PRX = 1
 
 EXTRA_TARGETS = EBOOT.PBP
 
-all: clean
-
 PSPSDK=$(shell psp-config --pspsdk-path)
 include $(PSPSDK)/lib/build.mak
