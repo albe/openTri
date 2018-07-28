@@ -6,6 +6,15 @@ Coded by Tomaz, Raphael, InsertWittyName
 See http://forums.qj.net/psp-development-forum/128874-release-triengine-full-featured-game-engine.html for original release post.
 
 
+## Homebrew built with triEngine
+
+Geometry Wars - http://www.neoflash.com/forum/index.php/topic,5322.0.html
+LuaPlayer HomeMister v2 (LPHMv2) - http://forums.qj.net/showpost.php?p=2102549&postcount=100
+PDF reader application - https://web.archive.org/web/20111130000918/http://forums.ps2dev.org:80/viewtopic.php?t=10845
+Mudkip Adventures - https://web.archive.org/web/20111130190741/http://www.fx-world.org:80/wordpress/?p=31
+
+(see also https://web.archive.org/web/20111130041704/http://www.fx-world.org:80/wordpress/?p=55)
+
 # FEATURE LIST
 
 ## triGraphics:
