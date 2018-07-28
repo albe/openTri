@@ -3,9 +3,9 @@
  * This file is part of the "tri Engine".
  *
  * Copyright (C) 2007 tri
- * Copyright (C) 2007,2010 Alexander Berl 'Raphael' <raphael@fx-world.org>
+ * Copyright (C) 2007 Alexander Berl 'Raphael' <raphael@fx-world.org>
  *
- * $Id: triGraphics.c 45 2010-02-02 22:24:41Z raphael $
+ * $Id: triGraphics.c 25 2008-08-22 20:06:45Z Raphael $
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -34,26 +34,14 @@
 #include "triVAlloc.h"
 #include "triLog.h"
 
-//#define TRI_DDLIST
-
-#ifdef TRI_DDLIST
-#define	TRI_DLISTMODE		GU_SEND
-#define TRI_DLISTS			2
-#define	TRI_DLIST_SWAP()	(triListIdx^=1)
-#else
-#define	TRI_DLISTMODE		GU_DIRECT
-#define TRI_DLISTS			1
-#define	TRI_DLIST_SWAP()	(void)0
-#endif
-#define TRI_DLIST()		(triList[triListIdx])
-
 
 extern triU32 triDlistSizeUser __attribute__((weak));
 static triU32 triDlistSize = 256*1024;
 
 // Globals
 //--------------------------------------------------
-static triVoid* triList[TRI_DLISTS];
+static triVoid* triList[2];
+//static triU32 __attribute__((aligned(16))) triList[2][262144/2];	// 2*256kb
 static triU32 triListIdx = 0;
 
 static	void*	triFrontbuffer	= 0;
@@ -78,9 +66,7 @@ static triS32	triSmoothditherFlag = 0;
 static triS32	triPseudoAAFlag = 0;
 
 
-#ifdef TRI_DDLIST
 static PspGeContext triGeContext;
-#endif
 static triFloat triFpsValue = 0.f;
 static triFloat triFpsMinValue = 9999.f;
 static triFloat triFpsMaxValue = 0.f;
@@ -94,6 +80,7 @@ static triU64	triVblankTime = 0;
 static triS32	triColorKey = 0;
 static triS32	triBlend = 0;
 static triS32	triCurContext = 0;
+
 
 static triFloat triSpriteWidth = 0.f;
 static triFloat triSpriteHeight = 0.f;
@@ -145,8 +132,9 @@ triS32 dither_matrix[16] = {
 
 void triGuFinishCallback( int what )
 {
+	triLogPrint("triGuFinishCallback( %i ) - Frame %i\n", what, triFrameCount);
+
 	sceRtcGetCurrentTick(&triGPUTime);
-	triGPUTime -= triFrameTime;
 }
 
 void triInit( triS32 psm, triBool doublebuffer )
@@ -189,12 +177,10 @@ void triInit( triS32 psm, triBool doublebuffer )
 	{
 		triDlistSize = triDlistSizeUser;
 	}
-	for (triListIdx=0;triListIdx<TRI_DLISTS;triListIdx++)
-		triList[triListIdx] = triMalloc(triDlistSize);
-	triListIdx = 0;
+	triList[0] = triMalloc(triDlistSize);
+	triList[1] = triMalloc(triDlistSize);
 	sceGuInit();
 
-	sceGuSetCallback(GU_CALLBACK_FINISH, &triGuFinishCallback);
 	// setup GU
 	sceGuStart(GU_DIRECT,triList[triListIdx]);
 	sceGuDrawBuffer(triPsm, triFrontbuffer, FRAME_BUFFER_WIDTH);
@@ -267,7 +253,7 @@ void triInit( triS32 psm, triBool doublebuffer )
 	sceGumLoadIdentity();
 	
 	sceGuClearColor( 0x0 );
-	sceGuClear(GU_COLOR_BUFFER_BIT|GU_FAST_CLEAR_BIT);
+	sceGuClear(GU_COLOR_BUFFER_BIT);
 	sceGuFinish();
 	sceGuSync(0,0);
 
@@ -278,13 +264,7 @@ void triInit( triS32 psm, triBool doublebuffer )
 		sceDisplaySetFrameBuf( triDispbuffers[1], 512, triPsm, PSP_DISPLAY_SETBUF_NEXTFRAME );
 	}
 
-	sceGuStart(TRI_DLISTMODE, TRI_DLIST());
-	#ifdef TRI_DDLIST
-	sceGuDrawBufferList(triPsm, vrelptr(triFramebuffer2), FRAME_BUFFER_WIDTH);
-	triCurContext = 0;
-	#else
-	triCurContext = 1;
-	#endif
+	sceGuStart(GU_SEND, triList[triListIdx]);
 	triListAvail = 1;
 	
 	sceRtcGetCurrentTick(&triLastTick);
@@ -306,8 +286,8 @@ void triClose()
 		triFree(triDispbuffers[0]);
 		triFree(triDispbuffers[1]);
 	}
-	for (triListIdx=0;triListIdx<TRI_DLISTS;triListIdx++)
-		triFree(triList[triListIdx]);
+	triFree(triList[0]);
+	triFree(triList[1]);
 	triInitialized = 0;
 	triListAvail = 0;
 	sceGuTerm();
@@ -316,51 +296,41 @@ void triClose()
 
 void triBegin()
 {
-	#ifdef TRI_DDLIST
 	sceGuStart(GU_DIRECT, triList[triListIdx^1]);
 	triCurContext = 1;
-	#endif
 }
 
 
 void triEnd()
 {
-	#ifdef TRI_DDLIST
 	if (sceGuFinish()>triDlistSize)
 	{
 		triLogError("ERROR: Display list overflow!\n");
 	}
 	triCurContext = 0;
-	sceGuDrawBufferList(triPsm, vrelptr(triFramebuffer2), FRAME_BUFFER_WIDTH);
-	#endif
 }
 
 
 void triSync()
 {
-	#ifdef TRI_DDLIST
+	//sceGuFinish();
+	//sceGuSync(0,0);
+	//sceGuStart(GU_DIRECT, (void*)((triU32)triList[triListIdx]|0x40000000));
+	//triListIdx ^= 1;
 	if (triCurContext==1)
-		sceGuSync(GU_SYNC_LIST,GU_SYNC_WAIT);
+		sceGuSync(GU_SYNC_LIST,GU_SYNC_WHAT_DONE);
 	else
-		sceGuSync(GU_SYNC_SEND,GU_SYNC_WAIT);
-	#else
-	sceGuSync(GU_SYNC_LIST,GU_SYNC_WAIT);
-	#endif
+		sceGuSync(GU_SYNC_SEND,GU_SYNC_WHAT_DONE);
 }
 
 
 void triSwapbuffers()
 {
-	triU64 triEndTick;
 	#ifdef TRI_PARANOIA
 	if (!triInitialized) return;
 	#endif
 	if (!triDoublebuffer)
 	{
-		if (triCurContext==1)
-			sceGuSync(GU_SYNC_LIST,GU_SYNC_WAIT);
-		else
-			sceGuSync(GU_SYNC_SEND,GU_SYNC_WAIT);
 		sceGuCopyImage(triPsm, 0, 0, 480, 272, 512, triFramebuffer, 0, 0, 512, triDispbuffers[triFrameCount&1]);
 		sceGuTexSync();
 	}
@@ -368,17 +338,13 @@ void triSwapbuffers()
 	{
 		triLogError("ERROR: Display list overflow!\n");
 	}
-	sceRtcGetCurrentTick(&triCPUTime);
-
-	// Sync to all drawing
+	if ((triFrameCount&15)==0) sceRtcGetCurrentTick(&triCPUTime);
+	//sceGuSync(GU_SYNC_SEND,GU_SYNC_WHAT_DONE);
 	sceGuSync(GU_SYNC_FINISH,GU_SYNC_WHAT_DONE);
-	
+	if ((triFrameCount&15)==0) sceRtcGetCurrentTick(&triGPUTime);
 	if ((triVBlankEnable || triPseudoAAEnable) && !triVBlankFlag)
 		sceDisplayWaitVblankStart();
-	sceRtcGetCurrentTick(&triEndTick);
-	
-	triCPUTime -= triFrameTime;
-	triVblankTime = triEndTick-triFrameTime;
+	if ((triFrameCount&15)==0) sceRtcGetCurrentTick(&triVblankTime);
 	
 	triVBlankFlag = 0;
 	triFramebuffer2 = triFramebuffer;
@@ -388,7 +354,7 @@ void triSwapbuffers()
 	}
 	else
 	{
-		sceDisplaySetFrameBuf( triDispbuffers[triFrameCount&1], 512, triPsm, PSP_DISPLAY_SETBUF_IMMEDIATE );
+		sceDisplaySetFrameBuf( triDispbuffers[triFrameCount&1], 512, triPsm, PSP_DISPLAY_SETBUF_NEXTFRAME );
 	}
 
 	// On the double buffered sendlist approach: Possible problem with renderbuffer effects?
@@ -403,17 +369,10 @@ void triSwapbuffers()
 	// actually fill it for the next frame, giving unpredictable results. This can be
 	// avoided for vertices if they are stored in the list (sceGuGetMemory) and for
 	// textures if they are double buffered too.
-	#ifdef	TRI_DDLIST
-	sceGuSendList(GU_TAIL, TRI_DLIST(), &triGeContext);
-	#endif
-	
-	TRI_DLIST_SWAP();
-	sceGuStart(TRI_DLISTMODE, TRI_DLIST());
-	#ifdef TRI_DDLIST
-	sceGuDrawBufferList(triPsm, vrelptr(triFramebuffer2), FRAME_BUFFER_WIDTH);
-	#else
-	sceGuDrawBufferList(triPsm, vrelptr(triFramebuffer), FRAME_BUFFER_WIDTH);
-	#endif
+	sceGuSendList(GU_TAIL, triList[triListIdx], &triGeContext);
+
+	sceGuStart(GU_SEND, triList[triListIdx^=1]);
+	sceGuDrawBufferList(triPsm, triFramebuffer2, FRAME_BUFFER_WIDTH);
 
 	if (triBpp<4 && triSmoothditherEnable)
 		sceGuSetDither( (ScePspIMatrix4*)DitherMatrix[triSmoothditherFlag^=1] );
@@ -425,15 +384,24 @@ void triSwapbuffers()
 		sceGumMatrixMode(GU_MODEL);
 	}
 
-	triFrameCount++;
-	if ((triEndTick-triLastTick)>=(triTickFrequency>>1))
+	if ((triFrameCount&15)==0)
 	{
-		triFpsValue = (triFloat)triFrameCount/(triEndTick-triLastTick)*triTickFrequency;
-		if (triFrameCount>1)
-		{
-			if (triFpsMinValue>triFpsValue) triFpsMinValue = triFpsValue;
-			if (triFpsMaxValue<triFpsValue) triFpsMaxValue = triFpsValue;
-		}
+		triCPUTime -= triFrameTime;
+		triGPUTime -= triFrameTime;
+		triVblankTime -= triFrameTime;
+	}
+	
+	triFrameCount++;
+	triU64 triEndTick;
+	sceRtcGetCurrentTick(&triEndTick);
+	triFpsValue = (triFloat)triFrameCount/(triEndTick-triLastTick)*triTickFrequency;
+	if ((triFrameCount&31)==0)
+	{
+		if (triFpsMinValue>triFpsValue) triFpsMinValue = triFpsValue;
+		if (triFpsMaxValue<triFpsValue) triFpsMaxValue = triFpsValue;
+	}
+	if ((triEndTick-triLastTick)>=triTickFrequency)
+	{
 		triFrameCount = 0;
 		triLastTick = triEndTick;
 	}
@@ -761,7 +729,7 @@ void triDrawRectOutline( triFloat x, triFloat y, triFloat width, triFloat height
 	#ifdef TRI_PARANOIA
 	if (!triInitialized) return;
 	#endif
-	triVertC* vertices = (struct triVertC*)sceGuGetMemory(6 * sizeof(triVertC));
+	triVertC* vertices = (struct triVertC*)sceGuGetMemory(5 * sizeof(triVertC));
 
 	vertices[0].color = color;
 	vertices[0].x = x; 
@@ -780,23 +748,17 @@ void triDrawRectOutline( triFloat x, triFloat y, triFloat width, triFloat height
 	
 	vertices[3].color = color;
 	vertices[3].x = x; 
-	vertices[3].y = y;
+	vertices[3].y = y+height; 
 	vertices[3].z = 0.0f;
-
+	
 	vertices[4].color = color;
 	vertices[4].x = x; 
-	vertices[4].y = y+height; 
+	vertices[4].y = y;
 	vertices[4].z = 0.0f;
-	
-	vertices[5].color = color;
-	vertices[5].x = x+width; 
-	vertices[5].y = y+height; 
-	vertices[5].z = 0.0f;
 	
 	sceGuDisable(GU_TEXTURE_2D);
 	sceGuShadeModel(GU_FLAT);
-	sceGuDrawArray(GU_LINE_STRIP, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D, 3, 0, &vertices[0]);
-	sceGuDrawArray(GU_LINE_STRIP, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D, 3, 0, &vertices[3]);
+	sceGuDrawArray(GU_LINE_STRIP, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D, 5, 0, vertices);
 	sceGuShadeModel(GU_SMOOTH);
 	sceGuEnable(GU_TEXTURE_2D);
 }
@@ -972,8 +934,9 @@ void triDrawTriGrad( triFloat x0, triFloat y0,  triFloat x1, triFloat y1,  triFl
 	vertices[2].z = 0.0f;
 
 	sceGuDisable(GU_TEXTURE_2D);
-	sceGuShadeModel(GU_SMOOTH);
+	sceGuShadeModel(GU_FLAT);
 	sceGuDrawArray(GU_TRIANGLES, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D, 3, 0, vertices);
+	sceGuShadeModel(GU_SMOOTH);
 	sceGuEnable(GU_TEXTURE_2D);
 }
 
@@ -1002,8 +965,6 @@ void triDrawRectRotate( triFloat x, triFloat y, triFloat width, triFloat height,
 	triVertC* vertices = (triVertC*)sceGuGetMemory(4 * sizeof(triVertC));
 	width *= 0.5f;
 	height *= 0.5f;
-	x += width;
-	y += height;
 	triFloat sin, cos;
 	triSinCos( angle, &sin, &cos );
 	triFloat sw = sin*width;
@@ -1307,8 +1268,8 @@ void triDrawStarOutline( triFloat x, triFloat y, triFloat radiusInner, triFloat 
 	sceGuDisable(GU_TEXTURE_2D);
 	sceGuShadeModel(GU_FLAT);
 	sceGuDrawArray(GU_LINE_STRIP, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D, numSteps*2 + 1, 0, vertices);
-	//sceGuShadeModel(GU_SMOOTH);
-	//sceGuEnable(GU_TEXTURE_2D);
+	sceGuShadeModel(GU_SMOOTH);
+	sceGuEnable(GU_TEXTURE_2D);
 }
 
 
@@ -1362,7 +1323,7 @@ void triDrawStarGrad( triFloat x, triFloat y, triFloat radiusInner, triFloat rad
 	sceGuDisable(GU_TEXTURE_2D);
 	sceGuShadeModel(GU_SMOOTH);
 	sceGuDrawArray(GU_TRIANGLE_FAN, GU_COLOR_8888|GU_VERTEX_32BITF|GU_TRANSFORM_2D, numSteps*2 + 2, 0, vertices);
-	//sceGuEnable(GU_TEXTURE_2D);
+	sceGuEnable(GU_TEXTURE_2D);
 }
 
 
@@ -1489,6 +1450,7 @@ void triDrawImage2( triFloat x, triFloat y, triImage* img )
 	triDrawImage( x, y, MIN(512,img->width), MIN(512,img->height), 0, 0, MIN(512,img->width), MIN(512,img->height), img );
 }
 
+
 void triBltSprite( triFloat x, triFloat y, triFloat u, triFloat v, triImage* img )
 {
 	if (img==0) return;
@@ -1498,19 +1460,12 @@ void triBltSprite( triFloat x, triFloat y, triFloat u, triFloat v, triImage* img
 	{
 		sceGuCopyImage( img->format, (int)u, (int)v, MIN(480,width), MIN(272,height),
 						img->stride, img->data,
-						(int)x, (int)y, 512, (triCurContext==1)?triFramebuffer:triFramebuffer2 );
-		sceGuTexSync();
+						(int)x, (int)y, 512, triFramebuffer );
 	}
 	else
-	{
-		sceGuDisable(GU_BLEND);
-		sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGBA);
 		triDrawImage( x, y, width, height, u, v, u+width, v+height, img );
-		sceGuEnable(GU_BLEND);
-	}
 }
 
-/*
 void triDrawImage( triFloat x, triFloat y, triFloat width, triFloat height,	// rect pos and size on screen
 				triFloat u0, triFloat v0, triFloat u1, triFloat v1,					// area of texture to render
 			   triImage* img )
@@ -1519,6 +1474,13 @@ void triDrawImage( triFloat x, triFloat y, triFloat width, triFloat height,	// r
 	if (!triInitialized) return;
 	#endif
 	if (img==0 || img->width==0 || img->height==0 || width==0 || height==0) return;
+	
+	/*if (img->swizzled==0 && img->format==triPsm && (u1-u0)==width && (v1-v0)==height)
+	{
+		sceGuCopyImage( img->format, u0, v0, width, height, img->stride, img->data,
+						x, y, 512, triFramebuffer );
+		return;
+	}*/
 
 	if (img->format==IMG_FORMAT_T4)
 	{
@@ -1534,20 +1496,19 @@ void triDrawImage( triFloat x, triFloat y, triFloat width, triFloat height,	// r
 	triChar* data = img->data;
 	if (u1>512.f)
 	{
-		int off = (u1>u0) ? ((int)u0 & ~31) : ((int)u1 & ~31);
+		int off = (int)u0 & ~31;
 		data += ((off*img->bits) >> 3);
 		u1 -= off;
 		u0 -= off;
 	}
 	if (v1>512.f)
 	{
-		int off = (v1>v0)? ((int)v0) : ((int)v1);
-		data += ((off*img->stride*img->bits) >> 3);
+		int off = (int)v0/* & ~15*/;
+		data += off*img->stride*img->bits >> 3;
 		v1 -= off;
 		v0 -= off;
 	}
 	sceGuTexImage(0, MIN(512,img->stride), MIN(512,img->tex_height), img->stride, data);
-	sceGuEnable(GU_TEXTURE_2D);
 	
 	triFloat start, end;
 	triFloat cur_u = u0;
@@ -1582,185 +1543,15 @@ void triDrawImage( triFloat x, triFloat y, triFloat width, triFloat height,	// r
 		sceGuDrawArray(GU_SPRITES,GU_TEXTURE_32BITF|GU_VERTEX_32BITF|GU_TRANSFORM_2D,2,0,vertices);
 	}
 }
-*/
 
-void triDrawImageCenterScaled( triFloat x, triFloat y, triFloat scale,	// rect center and scaling factor on screen
-							   triImage* img )
-{
-	if (img==0 || scale<=0.f) return;
-	triFloat width = img->width*scale;
-	triFloat height = img->height*scale;
-	// Center at x,y
-	x -= width*0.5f;
-	y -= height*0.5f;
-	triFloat u0 = 0.f, u1 = img->width, v0 = 0.f, v1 = img->height;
-	
-	// Clip to screen size
-	if (x < 0)
-	{
-		u0 -= x / scale;
-		width += x;
-		x = 0;
-	}
-	if (y < 0)
-	{
-		v0 -= y / scale;
-		height += y;
-		y = 0;
-	}
-	if (x + width > 480)
-	{
-		width = 480.f - x;
-		u1 = u0 + width / scale;
-	}
-	if (y + height > 282)
-	{
-		height = 282.f - y;
-		v1 = v0 + height / scale;
-	}
-	
-	triDrawImage( x, y, width, height, u0, v0, u1, v1, img );
-}
 
-void triDrawImageScaled( triFloat x, triFloat y, triFloat width, triFloat height,	// rect pos and size on screen
-			    triImage* img )
-{
-	if (img==0) return;
-	triDrawImage( x, y, width, height, 0.f, 0.f, img->width, img->height, img );
-}
-
-void triDrawImage( triFloat x, triFloat y, triFloat width, triFloat height,	// rect pos and size on screen
-				   triFloat u0, triFloat v0, triFloat u1, triFloat v1,		// area of texture to render
-				   triImage* img )
-{
-	#ifdef TRI_PARANOIA
-	if (!triInitialized) return;
-	#endif
-	if (img==0 || img->width==0 || img->height==0 || width==0 || height==0) return;
-	
-	// Support negative width/height to do easy flipping
-	if (width < 0)
-	{
-		//x += width;
-		triFloat u = u0; u0 = u1; u1 = u;
-		width = -width;
-	}
-	if (height < 0)
-	{
-		//y += height;
-		triFloat v = v0; v0 = v1; v1 = v;
-		height = -height;
-	}
-	
-	if (img->format==IMG_FORMAT_T4)
-	{
-		sceGuClutMode(img->palformat, 0, 0xff, 0);
-		sceGuClutLoad(2, img->palette);
-	}
-	else if (img->format==IMG_FORMAT_T8)
-	{
-		sceGuClutMode(img->palformat, 0, 0xff, 0);
-		sceGuClutLoad(32, img->palette);
-	}
-	sceGuTexMode(img->format, 0, 0, img->swizzled);
-	sceGuEnable(GU_TEXTURE_2D);
-
-	triFloat cur_v = v0;
-	triFloat cur_y = y;
-	triFloat v_end = v1;
-	triFloat y_end = y + height;
-	triFloat vslice = 512.f;
-	triFloat ystep = (height/(v1-v0) * vslice);
-	triFloat vstep = ((v1-v0) > 0 ? vslice : -vslice);
-	
-	triFloat x_end = x + width;
-	triFloat uslice = 64.f;
-	//triFloat ustep = (u1-u0)/width * xslice;
-	triFloat xstep = (width/(u1-u0) * uslice);
-	triFloat ustep = ((u1-u0) > 0 ? uslice : -uslice);
-	
-	triChar* data = img->data;
-	for ( ; cur_y < y_end; cur_y+=ystep, cur_v+=vstep )
-	{
-		triFloat cur_u = u0;
-		triFloat cur_x = x;
-		triFloat u_end = u1;
-
-		// support large images (height > 512)
-		int off = (vstep>0) ? ((int)cur_v) : ((int)(cur_v+vstep));
-		data += ((off*img->stride*img->bits) >> 3);
-		cur_v -= off;
-		v_end -= off;
-		sceGuTexImage(0, MIN(512,img->stride), MIN(512,img->tex_height), img->stride, data);
-
-		triFloat poly_height = ((cur_y+ystep) > y_end) ? (y_end-cur_y) : ystep;
-		triFloat source_height = vstep;
-		// support negative vsteps
-		if ((vstep > 0) && (cur_v+vstep > v_end))
-		{
-			source_height = (v_end-cur_v);
-		}
-		else
-		if ((vstep < 0) && (cur_v+vstep < v_end))
-		{
-			source_height = (cur_v-v_end);
-		}
-		
-		triChar* udata = data;
-		// blit maximizing the use of the texture-cache
-		for( ; cur_x < x_end; cur_x+=xstep, cur_u+=ustep )
-		{
-			// support large images (width > 512)
-			if (cur_u>512.f || cur_u+ustep>512.f)
-			{
-				int off = (ustep>0) ? ((int)cur_u & ~31) : ((int)(cur_u+ustep) & ~31);
-				udata += ((off*img->bits) >> 3);
-				cur_u -= off;
-				u_end -= off;
-				sceGuTexImage(0, MIN(512,img->stride), MIN(512,img->tex_height), img->stride, udata);
-			}
-			triVertUV* vertices = (triVertUV*)sceGuGetMemory(2 * sizeof(triVertUV));
-
-			triFloat poly_width = ((cur_x+xstep) > x_end) ? (x_end-cur_x) : xstep;
-			triFloat source_width = ustep;
-			// support negative usteps
-			if ((ustep > 0) && (cur_u+ustep > u_end))
-			{
-				source_width = (u_end-cur_u);
-			}
-			else
-			if ((ustep < 0) && (cur_u+ustep < u_end))
-			{
-				source_width = (cur_u-u_end);
-			}
-
-			vertices[0].u = cur_u;
-			vertices[0].v = cur_v;
-			vertices[0].x = cur_x; 
-			vertices[0].y = cur_y; 
-			vertices[0].z = 0;
-
-			vertices[1].u = cur_u + source_width;
-			vertices[1].v = cur_v + source_height;
-			vertices[1].x = cur_x + poly_width;
-			vertices[1].y = cur_y + poly_height;
-			vertices[1].z = 0;
-
-			sceGuDrawArray(GU_SPRITES,GU_TEXTURE_32BITF|GU_VERTEX_32BITF|GU_TRANSFORM_2D,2,0,vertices);
-		}
-	}
-}
 
 
 void triDrawImageRotate2( triFloat x, triFloat y, triFloat angle, triImage* img )
 {
-	if (img==0) return;
 	triDrawImageRotate( x, y, MIN(512,img->width), MIN(512,img->height), 0, 0, MIN(512,img->width), MIN(512,img->height), angle, img );
 }
 
-
-#define EPS 1.0e-6f
-#define FEQUAL(a,b) (((a) > (b)-EPS) && ((a) < (b)+EPS))
 
 void triDrawImageRotate( triFloat x, triFloat y, triFloat width, triFloat height,	// rect pos and size on screen
 				triFloat u0, triFloat v0, triFloat u1, triFloat v1,					// area of texture to render
@@ -1769,32 +1560,8 @@ void triDrawImageRotate( triFloat x, triFloat y, triFloat width, triFloat height
 	#ifdef TRI_PARANOIA
 	if (!triInitialized) return;
 	#endif
-	if (img==0 || img->width==0 || img->height==0 || width==0 || height==0) return;
+	if (img==0 || img->width==0 || img->height==0) return;
 
-	/*if (FEQUAL(angle,0.f))
-	{
-		triDrawImage( x, y, width, height, u0, v0, u1, v1, img );
-		return;
-	}
-	if (FEQUAL(angle,90.f))
-	{
-		triDrawImage( x + (width/2.f) - (height/2.f), y + (height/2.f) - (width/2.f), height, width,
-					  v1, u0, v0, u1, img );
-		return;
-	}
-	if (FEQUAL(angle,180.f))
-	{
-		triDrawImage( x, y, width, height,
-					  u1, v1, u0, v0, img );
-		return;
-	}
-	if (FEQUAL(angle,270.f))
-	{
-		triDrawImage( x + (width/2.f) - (height/2.f), y + (height/2.f) - (width/2.f), height, width,
-					  v0, u1, v1, u0, img );
-		return;
-	}*/
-	
 	if (img->format==IMG_FORMAT_T4)
 	{
 		sceGuClutMode(img->palformat, 0, 0xff, 0);
@@ -1806,133 +1573,25 @@ void triDrawImageRotate( triFloat x, triFloat y, triFloat width, triFloat height
 		sceGuClutLoad(32, img->palette);
 	}
 	sceGuTexMode(img->format, 0, 0, img->swizzled);
-	
 	triChar* data = img->data;
-	if (u1>512.f || u0>512.f)
+	if (u1>=512.f)
 	{
-		int off = (u1>u0) ? ((int)u0 & ~31) : ((int)u1 & ~31);
-		data += ((off*img->bits) >> 3);
-		u1 -= off;
-		u0 -= off;
+		data += ((int)u0)*img->bits >> 3;
+		u1 -= u0;
+		u0 = 0.f;
 	}
-	if (v1>512.f || v0>512.f)
+	if (v1>=512.f)
 	{
-		int off = (v1>v0)? ((int)v0) : ((int)v1);
-		data += ((off*img->stride*img->bits) >> 3);
-		v1 -= off;
-		v0 -= off;
+		data += ((int)v0)*img->stride*img->bits >> 3;
+		v1 -= v0;
+		v0 = 0.f;
 	}
 	sceGuTexImage(0, MIN(512,img->stride), MIN(512,img->tex_height), img->stride, data);
-	sceGuEnable(GU_TEXTURE_2D);
-/*
-	triFloat sin, cos;
-	triSinCos( angle, &sin, &cos );
-
-	triFloat center_x = x + width * 0.5f;
-	triFloat center_y = y + height * 0.5f;
+	sceGuTexScale( 1.0f / (triFloat)MIN(512,img->stride), 1.0f / (triFloat)MIN(512,img->tex_height) );
 	
-	triFloat cur_v = v0;
-	triFloat cur_y = y;
-	triFloat y_end = y + height;
-	triFloat yslice = 512.f;
-	triFloat vstep = (v1-v0)/height * yslice;
-	
-	triFloat x_end = x + width;
-	triFloat slice = 64.f;
-	triFloat ustep = (u1-u0)/width * slice;
-	
-	for ( ; cur_y < y_end; cur_y+=yslice, cur_v+=vstep )
-	{
-		triFloat cur_u = u0;
-		triFloat cur_x = x;
-
-		triChar* data = img->data;
-		// support large images (height > 512)
-		if (cur_v>512.f || cur_v+vstep>512.f)
-		{
-			int off = (vstep>0)? ((int)cur_v) : ((int)(cur_v+vstep));
-			data += ((off*img->stride*img->bits) >> 3);
-			cur_v -= off;
-			sceGuTexImage(0, MIN(512,img->stride), MIN(512,img->tex_height), img->stride, data);
-		}
-		triFloat poly_height = ((cur_y+yslice) > y_end) ? (y_end-cur_y) : yslice;
-		triFloat source_height = vstep;
-		// support negative vsteps
-		if ((vstep > 0) && (cur_v+vstep > v1))
-		{
-			source_height = (v1-cur_v);
-		}
-		else
-		if ((vstep < 0) && (cur_v+vstep < v1))
-		{
-			source_height = (v1+cur_v);
-		}
-		
-		// blit maximizing the use of the texture-cache
-		for( ; cur_x < x_end; cur_x+=slice, cur_u+=ustep )
-		{
-			// support large images (width > 512)
-			if (cur_u>512.f || cur_u+ustep>512.f)
-			{
-				int off = (ustep>0) ? ((int)cur_u & ~31) : ((int)(cur_u+ustep) & ~31);
-				data += ((off*img->bits) >> 3);
-				cur_u -= off;
-				sceGuTexImage(0, MIN(512,img->stride), MIN(512,img->tex_height), img->stride, data);
-			}
-			triVertUV* vertices = (triVertUV*)sceGuGetMemory(2 * sizeof(triVertUV));
-
-			triFloat poly_width = ((cur_x+slice) > x_end) ? (x_end-cur_x) : slice;
-			triFloat source_width = ustep;
-			// support negative usteps
-			if ((ustep > 0) && (cur_u+ustep > u1))
-			{
-				source_width = (u1-cur_u);
-			}
-			else
-			if ((ustep < 0) && (cur_u+ustep < u1))
-			{
-				source_width = (u1+cur_u);
-			}
-
-			triFloat sw = sin*(poly_width * 0.5f - center_x);
-			triFloat sh = sin*(poly_height * 0.5f - center_y);
-			triFloat cw = cos*(poly_width * 0.5f - center_x);
-			triFloat ch = cos*(poly_height * 0.5f - center_y);
-
-			vertices[0].u = cur_u;
-			vertices[0].v = cur_v;
-			vertices[0].x = center_x + cur_x + poly_width * 0.5f - cw - sh;
-			vertices[0].y = center_y + cur_y + poly_height * 0.5f - sw + ch;
-			vertices[0].z = 0.0f;
-
-			vertices[1].u = cur_u;
-			vertices[1].v = cur_v + source_height;
-			vertices[1].x = center_x + cur_x + poly_width * 0.5f - cw + sh; 
-			vertices[1].y = center_y + cur_y + poly_height * 0.5f - sw - ch; 
-			vertices[1].z = 0.0f;
-			
-			vertices[2].u = cur_u + source_width;
-			vertices[2].v = cur_v + source_height;
-			vertices[2].x = center_x + cur_x + poly_width * 0.5f + cw + sh; 
-			vertices[2].y = center_y + cur_y + poly_height * 0.5f + sw - ch; 
-			vertices[2].z = 0.0f;
-
-			vertices[3].u = cur_u + source_width;
-			vertices[3].v = cur_v;
-			vertices[3].x = center_x + cur_x + poly_width * 0.5f + cw - sh; 
-			vertices[3].y = center_y + cur_y + poly_height * 0.5f + sw + ch; 
-			vertices[3].z = 0.0f;
-
-			sceGuDrawArray(GU_TRIANGLE_FAN,GU_TEXTURE_32BITF|GU_VERTEX_32BITF|GU_TRANSFORM_2D,4,0,vertices);
-		}
-	}
-*/
-
 	triVertUV* vertices = (triVertUV*)sceGuGetMemory(4 * sizeof(triVertUV));
 	width *= 0.5f;
 	height *= 0.5f;
-	x += width;
-	y += height;
 	triFloat sin, cos;
 	triSinCos( angle, &sin, &cos );
 	triFloat sw = sin*width;

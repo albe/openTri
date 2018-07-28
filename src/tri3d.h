@@ -58,8 +58,6 @@ void tri3dOrtho();
 
 void tri3dFilter( triS32 filter );
 
-// Enable rendering to the alpha channel of current render target
-void tri3dRenderToAlpha(triS32 enable);
 
 // Render buffers (glow texture, feedback buffer, etc)
 void tri3dRenderbufferCreate( triS32 n, triS32 psm, triS32 width, triS32 height );

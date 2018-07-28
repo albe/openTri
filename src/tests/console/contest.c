@@ -66,7 +66,6 @@ int main(int argc, char **argv)
 	
 
 	printf("\nPlease type 'tty' to connect to the ingame console.\n");
-	printf("\nType '~.' to return to PSPLink shell.\n");
 	printf("Inside the console, type 'exit' to quit the program.\n");
 	printf("Type 'cmds' to get a list of available commands.\n");
 	printf("Type 'cvars' to get a list of registered cvars.\n");

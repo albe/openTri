@@ -1,5 +1,6 @@
 #include <string.h>
 #include <pspkernel.h>
+#include <pspdebug.h>
 #include <pspgum.h>
 #include <pspctrl.h>
 #include <psprtc.h>
@@ -17,7 +18,6 @@
 #include "../../triTexman.h"
 #include "../../triVAlloc.h"
 #include "../../triTimer.h"
-#include "../../triFont.h"
 
 
 PSP_MODULE_INFO("triModelTest", 0x0, 1, 1);
@@ -75,14 +75,14 @@ int main(int argc, char **argv)
 {
 	SetupCallbacks();
 	
+	pspDebugScreenInit();
+  
 	triLogInit();
-	triFontInit();
-	triInit( GU_PSM_5551, 1 );
+	triInit( GU_PSM_5551 );
+	pspDebugScreenSetColorMode( GU_PSM_5551 );
 	tri3dInit();
 	triInputInit();
 	triModelManagerInit();
-	
-	//triFontMakeMono( 0, 7 );
 	
 	triModel Model[3];
 
@@ -190,14 +190,14 @@ int main(int argc, char **argv)
 	
 	//triMeshOptimize( Model[0].parts[1].mesh, TRI_VERTFASTUVNF_FORMAT );
 	// Comment this line to test speed improvement of optimized mesh
-	//triModelOptimize( &Model[0], TRI_VERTFASTUVNF_FORMAT );
+	triModelOptimize( &Model[0], TRI_VERTFASTUVNF_FORMAT );
 
 	
 	// Uncomment this line to test automatic mipmap generation (might take a while)
-	/*triTimer* mmTimer = triTimerCreate();
+	triTimer* mmTimer = triTimerCreate();
 	triTextureBuildMipmaps( Model[0].parts[0].mesh->texID, 4 );
 	triLogPrint("Mipmap generation took %.3fs\n", triTimerPeekDeltaTime(mmTimer));
-	triTimerFree(mmTimer);*/
+	triTimerFree(mmTimer);
 	
 	
 /*	triImage* img;	
@@ -245,14 +245,13 @@ int main(int argc, char **argv)
 	triVec2f*	pStick	= triInputGetStick ();
 
 	tri3dPerspective( 45.0f );
-	sceGuFrontFace(GU_CCW);
+	sceGuFrontFace		(GU_CW);
 	triClear( 0xFF0000 );
 
 	//sceGuEnable(GU_LIGHTING);
 	//sceGuEnable(GU_LIGHT0);
 
 	triFloat val = 0.0f;
-/*
 	#define LIGHT_DISTANCE 5.0f
 	ScePspFVector3 pos = { 1 * LIGHT_DISTANCE, 3.0, 0 * LIGHT_DISTANCE };
 	sceGuLight(0,GU_POINTLIGHT,GU_DIFFUSE_AND_SPECULAR,&pos);
@@ -261,13 +260,17 @@ int main(int argc, char **argv)
 	sceGuLightAtt(0,0.0f,1.0f,0.0f);
 	sceGuSpecular(12.0f);
 	sceGuAmbient(0x00222222);
-*/
+
+	triEnable(TRI_VBLANK);
+	triSync();
+	
 	
 	triU32 frames = 0;
 	triS32 model = 0;
 	triS32 enableAA = 1;
-	triEnable(TRI_PSEUDO_FSAA);
-
+	
+	sceGumMatrixMode( GU_PROJECTION );
+	sceGumPushMatrix();
 	while (isrunning)
 	{
 		tri3dClear( 1,0,1 );
@@ -283,19 +286,19 @@ int main(int argc, char **argv)
 		}
 		if (triInputHeld (PSP_CTRL_UP))
 		{
-			triCameraRotateAbout( cam, SCE_DEG_TO_RAD(3.2f), &triXAxis, &triOrigin );
+			triCameraRotate( cam, SCE_DEG_TO_RAD(3.2f), &triXAxis );
 		}
 		if (triInputHeld (PSP_CTRL_DOWN))
 		{
-			triCameraRotateAbout( cam, SCE_DEG_TO_RAD(-3.2f), &triXAxis, &triOrigin );
+			triCameraRotate( cam, SCE_DEG_TO_RAD(-3.2f), &triXAxis );
 		}
 		if (triInputHeld (PSP_CTRL_LEFT))
 		{
-			triCameraRotateAbout( cam, SCE_DEG_TO_RAD(3.2f), &triYAxis, &triOrigin );
+			triCameraRotate( cam, SCE_DEG_TO_RAD(3.2f), &triYAxis );
 		}
 		if (triInputHeld (PSP_CTRL_RIGHT))
 		{
-			triCameraRotateAbout( cam, SCE_DEG_TO_RAD(-3.2f), &triYAxis, &triOrigin );
+			triCameraRotate( cam, SCE_DEG_TO_RAD(-3.2f), &triYAxis );
 		}
 		
 		if (triInputHeld (PSP_CTRL_TRIANGLE))
@@ -317,13 +320,13 @@ int main(int argc, char **argv)
 		
 		if (triInputPressed (PSP_CTRL_START))
 		{
-			enableAA = (enableAA+1)%2;
+			enableAA = (enableAA+1)%3;
 			if (enableAA)
-				triEnable(TRI_PSEUDO_FSAA);
+				triEnable(TRI_VBLANK);
 			else
-				triDisable(TRI_PSEUDO_FSAA);
+				triDisable(TRI_VBLANK);
 		}
-/*
+
 		ScePspFVector3 pos = { cosf(val * (GU_PI/180)) * LIGHT_DISTANCE, 3.0, sinf(val * (GU_PI/180)) * LIGHT_DISTANCE };
 		sceGuLight(0,GU_POINTLIGHT,GU_DIFFUSE_AND_SPECULAR,&pos);
 		sceGuLightColor(0,GU_DIFFUSE,0x22220000);
@@ -333,7 +336,7 @@ int main(int argc, char **argv)
 		sceGuAmbient(0x00222222);
 		val += 1.0f;
 		if (val>=360.0f) val -= 360.0f;
-*/
+		
 		Model[model].parts[1].rot.y	=  pStick->x * 45.0f;
 		Model[model].parts[2].rot.y	=  pStick->x * 45.0f;
 		Model[model].parts[3].rot.y	= -pStick->x * 22.5f;
@@ -344,13 +347,25 @@ int main(int argc, char **argv)
 		Model[model].parts[4].rot.x	+= 5.0f;
 
 		{
+			if (enableAA==1)
+				tri3dPerspective( 45.0f + (frames&1)*0.5f );
+			else
+			{
+				sceGumMatrixMode( GU_PROJECTION );
+				sceGumLoadIdentity();
+				if (frames&1 && enableAA)
+				{
+					ScePspFVector3 displace = { -0.002f, 0.00367f, 0.0f };	// ~ 1/480, 1/272
+					sceGumTranslate( &displace );
+				}
+				sceGumPerspective( 45.f, 16.0f/9.0f, 1.0f, 1000.0f );
+			}
 			triCameraUpdateMatrix( cam );
 			sceGumMatrixMode	(GU_MODEL);
 			sceGumLoadIdentity	();
 		}
 
-		triModelRender( &Model[model] );
-		/*
+
 		sceGumPushMatrix ();
 
 		triVec3Set (&Rot, SCE_DEG_TO_RAD (Model[model].rot.x), SCE_DEG_TO_RAD (Model[model].rot.y), SCE_DEG_TO_RAD (Model[model].rot.z));
@@ -358,8 +373,6 @@ int main(int argc, char **argv)
 		sceGumTranslate ((ScePspFVector3*)&Model[model].pos);
 		sceGumRotateXYZ ((ScePspFVector3*)&Rot);
 
-		sceGuDisable(GU_BLEND);
-		sceGuEnable(GU_TEXTURE_2D);
 		for (i=0; i<Model[model].numParts; i++)
 		{
 			sceGumPushMatrix ();
@@ -383,15 +396,17 @@ int main(int argc, char **argv)
 		}
 
 		sceGumPopMatrix ();
-		*/
-		frames++;
 		
-		triFontActivate(0);
-		triFontPrintf( 0, 0, 0xFFFFFFFF, "FPS: %.2f - MAX: %.2f - MIN: %.2f", triFps(), triFpsMax(), triFpsMin() );
-		triFontPrintf( 0,10, 0xFFFFFFFF, "CPU: %.2f%% - GPU: %.2f%%", triCPULoad(), triGPULoad() );
-		triFontPrintf( 0,20, 0xFFFFFFFF, "AA mode: %s", enableAA==0?"off":"on" );
-		triFontPrintf( 0,30, 0xFFFFFFFF, "VRAM: %i - largest: %i", triVMemavail()/1024, triVLargestblock()/1024 );
-		triFontPrintf( 0,40, 0xFFFFFFFF, "CAM: <%.1f, %.1f, %.1f> -> <%.1f, %1.f, %1.f>", cam->pos.x, cam->pos.y, cam->pos.z, cam->dir.x, cam->dir.y, cam->dir.z);
+		frames++;
+		pspDebugScreenSetOffset((triS32)vrelptr(triFramebuffer));
+		pspDebugScreenSetXY(0,0);
+		pspDebugScreenPrintf( "FPS: %.2f - MAX: %.2f - MIN: %.2f", triFps(), triFpsMax(), triFpsMin() );
+		pspDebugScreenSetXY(0,1);
+		pspDebugScreenPrintf( "CPU: %.2f%% - GPU: %.2f%%", triCPULoad(), triGPULoad() );
+		pspDebugScreenSetXY(0,2);
+		pspDebugScreenPrintf( "AA mode: %s", enableAA==0?"off":enableAA==1?"perspective":"displaced" );
+		pspDebugScreenSetXY(0,3);
+		pspDebugScreenPrintf( "VRAM: %i - largest: %i", triVMemavail()/1024, triVLargestblock()/1024 );
 		triSwapbuffers();
 	}
 	

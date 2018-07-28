@@ -11,7 +11,7 @@ homepage: http://wordpress.fx-world.org
 #define __streams_h__
 
 
-#ifdef _PSP
+#ifdef __PSP__
 #include <pspiofilemgr.h>
 #endif
 
@@ -37,7 +37,7 @@ homepage: http://wordpress.fx-world.org
 #define STREAM_END 0x2
 
 
-#ifdef _PSP
+#ifdef __PSP__
 #define STREAM_RDONLY PSP_O_RDONLY
 #define STREAM_WRONLY PSP_O_WRONLY
 #define STREAM_RDWR   PSP_O_RDWR
@@ -103,7 +103,7 @@ typedef struct mstream_struct {
 // File IO stream
 typedef struct fstream_struct {
 	stream_base	s;
-	#ifdef _PSP
+	#ifdef __PSP__
 	int		fd;
 	#else
 	FILE*	fd;
@@ -122,13 +122,13 @@ typedef struct fstream_struct {
 // Buffered file IO stream with asynchronous reads/writes
 typedef struct afstream_struct {
 	stream_base	s;
-	#ifdef _PSP
+	#ifdef __PSP__
 	int		fd;
 	#else
 	FILE*	fd;
 	#endif
 
-	char	data[BFILE_BUFFER_SIZE];		// Read/Write buffer
+	char	data[BFILE_BUFFER_SIZE*2];		// Doublebuffered input buffer
 	char*	cur;
 	int		buf;							// Current buffer number
 	
@@ -252,7 +252,7 @@ int stream_get_typeid();
 
 
 // VFPU optimized memcpy function for usage by protocols (falls back to libc malloc if not on PSP)
-void* memcpy_vfpu( void* dst, void* src, unsigned int size );
+void memcpy_vfpu( void* dst, void* src, unsigned long size );
 
 
 #endif //__streams_h__

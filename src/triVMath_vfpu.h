@@ -256,7 +256,7 @@ triVec4f* triVec4Neg3( triVec4f* a, const triVec4f* b );
 triVec4f* triVec4Abs( triVec4f* a, const triVec4f* b );
 
 /** Clamp Vector.
-  * a = clamp(b.x,min,max) | clamp(b.y,min,max) | clamp(b.z,min,max) | clamp(b.w,min,max)
+  * a = clamp(b.x,min,max) | clamp(b.y,min,max) | clamp(b.z,min,max) | b.w
   * @param a - Pointer to destination vector
   * @param b - Pointer to source vector
   * @param min - Minimum to clamp to
@@ -266,7 +266,7 @@ triVec4f* triVec4Abs( triVec4f* a, const triVec4f* b );
 triVec4f* triVec4Clamp( triVec4f* a, const triVec4f* b, triFloat min, triFloat max );
 
 /** Clamp Vector.
-  * a = clamp(b.x,min,max) | clamp(b.y,min,max) | clamp(b.z,min,max) | b.w
+  * a = clamp(b.x,min,max) | clamp(b.y,min,max) | clamp(b.z,min,max) | clamp(b.w,min,max)
   * @param a - Pointer to destination vector
   * @param b - Pointer to source vector
   * @param min - Minimum to clamp to
@@ -434,7 +434,7 @@ triVec4f* triVec4Lerp( triVec4f* a, const triVec4f* b, const triVec4f* c, triFlo
 triVec4f* triVec4Lerp3( triVec4f* a, const triVec4f* b, const triVec4f* c, triFloat t );
 
 /** Scale Vector.
-  * a = b * t
+  * a = b * c
   * @param a - Pointer to destination vector
   * @param b - Pointer to source vector
   * @param t - Scalar to scale b with
@@ -443,7 +443,7 @@ triVec4f* triVec4Lerp3( triVec4f* a, const triVec4f* b, const triVec4f* c, triFl
 triVec4f* triVec4Scale( triVec4f* a, const triVec4f* b, triFloat t );
 
 /** Scale Vector.
-  * a = b * t
+  * a = b * c
   * <br>Vectors are treated as 3D vectors.
   * @param a - Pointer to destination vector
   * @param b - Pointer to source vector
@@ -453,7 +453,7 @@ triVec4f* triVec4Scale( triVec4f* a, const triVec4f* b, triFloat t );
 triVec4f* triVec4Scale3( triVec4f* a, const triVec4f* b, triFloat t );
 
 /** Calculate Vector dotproduct.
-  * return a.b
+  * a = b.c
   * @param a - Pointer to first source vector
   * @param b - Pointer to second source vector
   * @return Dotproduct of a and b
@@ -461,7 +461,7 @@ triVec4f* triVec4Scale3( triVec4f* a, const triVec4f* b, triFloat t );
 triFloat triVec4Dot( const triVec4f* a, const triVec4f* b );
 
 /** Calculate Vector dotproduct.
-  * return a.b
+  * a = b.c
   * <br>Vectors are treated as 3D vectors.
   * @param a - Pointer to first source vector
   * @param b - Pointer to second source vector
@@ -678,7 +678,6 @@ triQuat* triQuatNLerp(triQuat* a, const triQuat* b, const triQuat* c, triFloat t
 triQuat* triQuatSLerp(triQuat* a, const triQuat* b, const triQuat* c, triFloat t);
 
 /** Cubical interpolation of quaternions.
-  * return SLerp( SLerp( b, c, t ), SLerp( d, e, t ), 2*t*(1-t) )
   * @param a - Pointer to dest quaternion
   * @param b - Pointer to first source quaternion
   * @param c - Pointer to second source quaternion

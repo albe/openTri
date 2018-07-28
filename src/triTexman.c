@@ -330,8 +330,8 @@ triS32 triTextureBind( triS32 id )
 		list->next_prio = temp;
 	}
 	
-	sceGuEnable(GU_TEXTURE_2D);
-	//if (last_bind==id) return(0);	// Quick out when we bind a already bound texture
+	
+	if (last_bind==id) return(0);	// Quick out when we bind a already bound texture
 	
 	triTexture* tex = list->tex;
 	switch (tex->format)
@@ -1106,10 +1106,10 @@ triS32 triTextureLoad( triChar* filename )
 	return tex->id;
 }
 
-triS32 triTextureLoadStream( stream* s )
+triS32 triTextureLoadSream( stream* s )
 {
 	triChar tname[512];
-	snprintf( tname, 512, "TEX::%s", stream_name( s ) );
+	snprintf( tname, 512, "TEX::stream%i",(int)triTexman.id_counter + 1 );
 	
 	triTexture* tex = (triTexture*)triRefcountRetain( tname );
 

@@ -22,11 +22,12 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#ifdef __PSP__
 #include <pspkernel.h>
 #include <pspgu.h>
 #include <psptypes.h>
 #include <psprtc.h>
-
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -1486,10 +1487,35 @@ triImage* triImageLoad( triChar* name, triU32 flags )
 		return(0);
 	}
 	
-	triImage* img = triImageLoadStream( s, flags );
+	triU8 magic[8];
+	stream_read( s, magic, 8 );
+	stream_seek( s, 0, STREAM_SET );
+	
+	triImage* img = 0;
+	#ifdef TRI_SUPPORT_PNG
+	//triLogPrint("magic: %c%c%c%c%c%c%c%c\n", magic[0],magic[1],magic[2],magic[3],magic[4],magic[5],magic[6],magic[7]);
+	if (memcmp(magic+1, "PNG", 3)==0) // (png_sig_cmp(magic,0,8)) // [fails??]
+		img = triImageLoadPngStream( s );
+	else
+	#endif
+
+	if (memcmp(magic,"triImage",8)==0)
+		img = triImageLoadTriStream( s, (flags >> 11) );
+	else
+		img = triImageLoadTgaStream( s );
 	
 	stream_close( s );
-
+	
+	if ((flags & (TRI_SWIZZLE|TRI_VRAM))==(TRI_SWIZZLE|TRI_VRAM))
+		triImageSwizzleToVRAM( img );
+	else
+	if (flags & TRI_SWIZZLE)
+		triImageSwizzle( img );
+	else
+	if (flags & TRI_VRAM)
+		triImageToVRAM( img );
+		
+	sceKernelDcacheWritebackAll();
 	return img;
 }
 
@@ -1503,7 +1529,7 @@ triImage* triImageLoadStream( stream* s, triU32 flags )
 	
 	triImage* img = 0;
 	#ifdef TRI_SUPPORT_PNG
-	if (memcmp(magic+1, "PNG", 3)==0) // (png_sig_cmp(magic,0,8)) // [fails??]
+	if (png_sig_cmp(magic,0,8))
 		img = triImageLoadPngStream( s );
 	else
 	#endif
@@ -2680,18 +2706,6 @@ void triImageAnimationSaveTri( triChar* name, triImageAnimation* ani, triS32 fla
 
 
 #ifdef TRI_SUPPORT_PNG
-
-triVoid user_write_fn(png_structp png_ptr, png_bytep ptr, png_size_t size)
-{
-	stream* s = (stream*)png_get_io_ptr( png_ptr );
-	stream_write( s, ptr, size );
-}
-
-triVoid user_flush_fn(png_structp png_ptr)
-{
-	//stream* s = (stream*)png_get_io_ptr( png_ptr );
-}
-
 triVoid triImageSavePng( triChar* name, triImage *img, triS32 saveAlpha )
 {
 	if (img==0) return;
@@ -2721,7 +2735,6 @@ triVoid triImageSavePng( triChar* name, triImage *img, triS32 saveAlpha )
 	if (!fp) return;
 	
 	png_init_io(png_ptr, fp);
-	//png_set_write_fn(png_ptr, (png_voidp)s, user_write_fn, user_flush_fn);
 	png_set_IHDR(png_ptr, info_ptr, img->width, img->height,
 		8, col_type, PNG_INTERLACE_NONE,
 		PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);

@@ -30,7 +30,6 @@
 #include <stdio.h>
 #include <math.h>
 #include "triVMath_vfpu.h"
-#include "triGraphics.h"
 #include "tri3d.h"
 #include "triCamera.h"
 #include "triTexman.h"
@@ -63,11 +62,8 @@ void triParticleSystemConstructor( triParticleSystem* s )
 	s->vorticesStack = 0;
 	s->numVortices = 0;
 	
-	s->vertices[0] = 0;
-	s->vertices[1] = 0;
+	s->vertices = 0;
 	s->numVertices = 0;
-	
-	s->render = 0;
 	
 	s->textureID = -1;
 	s->renderMode = GU_SPRITES;
@@ -75,7 +71,6 @@ void triParticleSystemConstructor( triParticleSystem* s )
 	s->blendMode = TRI_BLEND_MODE_ALPHA_ADD;
 	s->useBillboards = 1;
 	s->updateFlag = 1;
-	s->vindex = 0;
 	memset( s->actions, 0, sizeof(s->actions) );
 }
 
@@ -101,11 +96,9 @@ void triParticleSystemFree( triParticleSystem* s )
 	s->vorticesStack = 0;
 	s->numVortices = 0;
 	
-	if (s->vertices[0]!=0) triFree(s->vertices[0]);
-	if (s->vertices[1]!=0) triFree(s->vertices[1]);
+	if (s->vertices!=0) triFree(s->vertices);
 	triLogPrint("triFreed vertexbuffer...\n");
-	s->vertices[0] = 0;
-	s->vertices[1] = 0;
+	s->vertices = 0;
 	s->numVertices = 0;
 	
 	s->textureID = -1;
@@ -159,19 +152,16 @@ void triParticleSystemInitialize( triParticleSystem* s, triParticleEmitter* e )
 	{
 		if (s->textureID!=-1)
 		{
-			s->vertices[0] = triMalloc( sizeof(triVertFastUVCf)*e->max*s->numVerticesPerParticle );
-			s->vertices[1] = triMalloc( sizeof(triVertFastUVCf)*e->max*s->numVerticesPerParticle );
+			s->vertices = triMalloc( sizeof(triVertFastUVCf)*e->max*s->numVerticesPerParticle );
 			s->vertexFormat = TRI_VERTFASTUVCF_FORMAT;
 		}
 		else
 		{
-			s->vertices[0] = triMalloc( sizeof(triVertC)*e->max*s->numVerticesPerParticle );
-			s->vertices[1] = triMalloc( sizeof(triVertC)*e->max*s->numVerticesPerParticle );
+			s->vertices = triMalloc( sizeof(triVertC)*e->max*s->numVerticesPerParticle );
 			s->vertexFormat = TRI_VERTC_FORMAT;
 		}
-		if (s->vertices[0]==0 || s->vertices[1]==0)
+		if (s->vertices==0)
 			triLogError("ERROR allocating vertex memory!\n");
-		triLogPrint("Allocated vertex buffer...\n");
 	}
 }
 
@@ -179,24 +169,18 @@ void triParticleSystemInitialize( triParticleSystem* s, triParticleEmitter* e )
 triS32 triParticleSystemRender( triParticleSystem* s )
 {
 	if (s==0) return(0);
+	if (s->numVertices==0) return(0);
 	
 	if (s->render!=0)
 	{
-		sceGuDisable(GU_CULL_FACE);
-		sceGuEnable(GU_BLEND);
-		triDisable(TRI_DEPTH_WRITE); // No depth writes
-		sceGuBlendFunc(s->blendMode.op,s->blendMode.src_op,s->blendMode.dst_op,s->blendMode.src_fix,s->blendMode.dst_fix);
 		int i = 0;
 		for (;i<s->numParticles;i++)
 		{
 			s->render(s, &s->particles[s->particleStack[i]]);
 		}
-		sceGuEnable(GU_CULL_FACE);
-		triEnable(TRI_DEPTH_WRITE);
 		return(1);
 	}
 	
-	if (s->numVertices==0) return(0);
 	sceGumUpdateMatrix();
 	sceGuBeginObject( GU_VERTEX_32BITF|GU_TRANSFORM_3D, 8, 0, s->boundingBox );
 	if (s->textureID>=0 && (s->vertexFormat&(GU_TEXTURE_16BIT | GU_TEXTURE_32BITF))!=0)
@@ -211,11 +195,12 @@ triS32 triParticleSystemRender( triParticleSystem* s )
 	
 	sceGuDisable(GU_CULL_FACE);
 	sceGuEnable(GU_BLEND);
-	triDisable(TRI_DEPTH_WRITE); // No depth writes
+	sceGuDepthMask(GU_TRUE); // No depth writes
 	sceGuBlendFunc(s->blendMode.op,s->blendMode.src_op,s->blendMode.dst_op,s->blendMode.src_fix,s->blendMode.dst_fix);
-	sceGumDrawArray(s->renderMode,s->vertexFormat|GU_TRANSFORM_3D,s->numVertices,0,s->vertices[s->vindex]);
+	sceGumDrawArray(s->renderMode,s->vertexFormat|GU_TRANSFORM_3D,s->numVertices,0,s->vertices);
 	sceGuEnable(GU_CULL_FACE);
-	triEnable(TRI_DEPTH_WRITE);
+	sceGuDisable(GU_BLEND);
+	sceGuDepthMask(GU_FALSE);
 	sceGuEnable(GU_TEXTURE_2D);
 	sceGuEndObject();
 	return(1);
@@ -300,7 +285,6 @@ static inline triS32 triParticleUpdateLoadEmitter( triParticleEmitter* e, triFlo
 	"vocp.s s102, s102\n"			// 1.0 - e->friction*dt
 	::"m"(*e),"r"(dt)
 	);
-	return 1;
 }
 
 triU32 min = 99999, max = 0;
@@ -388,7 +372,7 @@ static inline triS32 triParticleUpdate( triParticleEmitter* e, triParticle* p, t
 	"vocp.s s411, s411\n"
 	"vadd.t			c010, c010, c200\n"
 	"vmul.s s411, s411, s310\n"		// e->binding*(1.0f - (age * e->loosen))
-	"vadd.q			c000, c000, c210\n"
+	"vadd.t			c000, c000, c210\n"
 	"vscl.t	c320, c320, s411\n"
 	"vadd.t c000, c000, c320\n"
 
@@ -438,7 +422,7 @@ static inline triS32 triParticleUpdate( triParticleEmitter* e, triParticle* p, t
 	triVec4Add3( &p->vel, &p->vel, &temp_force );
 	triVec4Add( &p->pos, &p->pos, &temp_vel );
 
-	if (p->pos.w > 360.0f) p->pos.w -= 360.0f;
+	//if (p->pos.w > 360.0f) p->pos.w -= 360.0f;
 
 	// FIXME: Use a better formula to move particles with the emitter
 	if (e->binding > 0.0f)
@@ -757,8 +741,7 @@ triQuat rot;
 
 triS32 triParticleVertexUVCListCreate( triParticleSystem* s, triCamera* cam )
 {
-	s->vindex^=1;
-	triVertFastUVCf* v = (triVertFastUVCf*)s->vertices[s->vindex];
+	triVertFastUVCf* v = (triVertFastUVCf*)s->vertices;
 	triParticle* p = s->particles;
 	s->vertexFormat = TRI_VERTFASTUVCF_FORMAT;
 	s->numVertices = 0;
@@ -1069,8 +1052,7 @@ triS32 triParticleVertexUVCListCreate( triParticleSystem* s, triCamera* cam )
 
 triS32 triParticleVertexCListCreate( triParticleSystem* s, triCamera* cam )
 {
-	s->vindex^=1;
-	triVertC* v = (triVertC*)s->vertices[s->vindex];
+	triVertC* v = (triVertC*)s->vertices;
 	triParticle* p = s->particles;
 	s->vertexFormat = TRI_VERTC_FORMAT;
 	s->numVertices = 0;
@@ -1233,11 +1215,10 @@ void triParticleEmitterConstructor( triParticleEmitter *e, triS32 emitterType )
 			triColor4Set( &e->cols[1], 0.6f, 0.1f, 0.0f, 1.0f );	// go to light blue
 			triColor4Set( &e->cols[2], 0.8f, 0.1f, 0.0f, 1.0f );	// to red
 			triColor4Set( &e->cols[3], 0.8f, 0.1f, 0.0f, 1.0f );	// to red
-			triColor4Set( &e->cols[4], 0.8f, 0.8f, 0.0f, 1.0f );	// to yellow
-			triColor4Set( &e->cols[5], 0.2f, 0.2f, 0.02f, 1.0f );	// to grey
-			triColor4Set( &e->cols[6], 0.2f, 0.2f, 0.2f, 0.8f );	// to grey
-			triColor4Set( &e->cols[7], 0.2f, 0.2f, 0.2f, 0.0f );	// fade out
-			e->numCols = 8;
+			triColor4Set( &e->cols[4], 0.8f, 0.1f, 0.0f, 1.0f );	// to red
+			triColor4Set( &e->cols[5], 0.8f, 0.8f, 0.0f, 0.8f );	// to yellow
+			triColor4Set( &e->cols[6], 0.8f, 0.8f, 0.0f, 0.0f );	// fade out
+			e->numCols = 7;
 			
 			e->growth = -0.7f/6.0f;
 
@@ -1251,12 +1232,6 @@ void triParticleEmitterConstructor( triParticleEmitter *e, triS32 emitterType )
 			e->min = 0;
 			e->max = 256;
 			e->rate = 16;
-			e->minVortex = 0;
-			e->maxVortex = 16;
-			e->rateVortex = 4;			
-			e->vortexDir = 0.f;
-			e->vortexDirRand = 1.5f;
-			e->vortexRange = 0.33f;
 			e->lifetime = 0;	// Eternal
 			break;
 
@@ -1349,11 +1324,9 @@ void triParticleEmitterConstructor( triParticleEmitter *e, triS32 emitterType )
 			e->min = 0;
 			e->max = 512;
 			e->minVortex = 0;
-			e->maxVortex = 16;
-			e->vortexDir = 0.f;
-			e->vortexDirRand = 1.5f;
+			e->maxVortex = 100;
 			e->rate = 32;
-			e->rateVortex = 4;
+			e->rateVortex = 10;
 			e->vortexRange = 0.33f;
 			e->lifetime = 30.0f;
 			break;

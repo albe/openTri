@@ -32,9 +32,6 @@
  *  @{
  */
  
- 
-extern triVec4f	triOrigin;
-
 typedef struct
 {
 	triVec4		pos;		// the camera's position (triVec4 for vfpu accesses)
@@ -49,7 +46,7 @@ typedef struct
 	triFloat	t;			// the time to take the camera to destination
 
 	triS32		dirty;		// camera changed, needs view matrix update
-} triCamera ALIGN16;
+} triCamera;
 
 
 
@@ -78,11 +75,6 @@ void triCameraInterpolate( triCamera* cam, triFloat dt );
 // update the VIEW matrix to resemble the camera
 void triCameraUpdateMatrix( triCamera* cam );
 
-
-// project world space coordinates into normalized device space coordinates
-void triCameraProject( triVec4* vout, triCamera* cam, triVec4* vin );
-// unproject screen space coordinates into world space coordinates
-void triCameraUnproject( triVec4* vout, triCamera* cam, triVec4* vin );
 /** @} */
 
 #endif // __TRICAMERA_H__

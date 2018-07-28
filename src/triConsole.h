@@ -170,7 +170,7 @@ triChar* triCmdTokenize( triChar* line );
 
 
 
-triChar* cmd_aliases();
+
 triChar* cmd_exit();
 triChar* cmd_cls();
 triChar* cmd_cmds();
@@ -179,7 +179,6 @@ triChar* cmd_echo();
 triChar* cmd_wait();
 triChar* cmd_alias();
 triChar* cmd_exec();
-triChar* cmd_eval();
 
 
 /*

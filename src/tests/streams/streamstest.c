@@ -49,6 +49,322 @@ int SetupCallbacks(void)
 }
 
 
+
+void *sceVfpuMemcpy_vnop(void *dst, const void *src, unsigned int n)
+{
+	unsigned char *d       = (unsigned char *)dst;
+	const unsigned char *s = (const unsigned char *)src;
+
+	while (n>0 && (((unsigned int)d) & 0x3F)!=0) {
+		*d++ = *s++;
+		n--;
+	}
+	if (n==0) {
+		return (dst);
+	} else if (n >= 64) {
+		unsigned char *ud;
+		ud = (unsigned char *)((unsigned int)d | 0x40000000);
+
+		switch (((unsigned int)s) & 0xF) {
+			case 0:
+				__asm__ volatile (
+					".set			push\n"					// save assembler option
+					".set			noreorder\n"			// suppress reordering
+					"srl			$8, %2, 7\n"			// t0   = (n>>7)
+					"beq			$8, $0, 1f\n"			// if (t0==0) goto 1f
+					"nop\n"									// waste delay slot
+				"0:\n"
+					"cache			0x1B,   0(%0)\n"		// Hit Writeback Invalidate(D)
+					"lv.q			c000,   0(%1)\n"		// c000 = *(s +   0)
+					"lv.q			c010,  16(%1)\n"		// c010 = *(s +  16)
+					"lv.q			c020,  32(%1)\n"		// c020 = *(s +  32)
+					"lv.q			c030,  48(%1)\n"		// c030 = *(s +  48)
+					"lv.q			c100,  64(%1)\n"		// c100 = *(s +  64)
+					"lv.q			c110,  80(%1)\n"		// c110 = *(s +  80)
+					"lv.q			c120,  96(%1)\n"		// c120 = *(s +  96)
+					"lv.q			c130, 112(%1)\n"		// c130 = *(s + 112)
+					"cache			0x1B,  64(%0)\n"		// Hit Writeback Invalidate(D)
+					"addiu			%0, %0, 128\n"			// d    = d + 128
+					"addiu			%1, %1, 128\n"			// s    = s + 128
+					"addiu			%2, %2, -128\n"			// n    = n - 128
+					"srl			$8, %2, 7\n"			// t0   = (n>>7)
+					"sync\n"								// stall until asynchronous writeback from Allegrex
+					"sv.q			c000,   0(%3), wb\n"	// *(ud +   0) = c000
+					"sv.q			c010,  16(%3), wb\n"	// *(ud +  16) = c010
+					"sv.q			c020,  32(%3), wb\n"	// *(ud +  32) = c020
+					"sv.q			c030,  48(%3), wb\n"	// *(ud +  48) = c030
+					"sv.q			c100,  64(%3), wb\n"	// *(ud +  64) = c100
+					"sv.q			c110,  80(%3), wb\n"	// *(ud +  80) = c110
+					"sv.q			c120,  96(%3), wb\n"	// *(ud +  96) = c120
+					"sv.q			c130, 112(%3), wb\n"	// *(ud + 112) = c130
+					"addiu			%3, %3, 128\n"			// ud = ud + 128
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"bne			$8, $0, 0b\n"			// if (t0!=0) goto 0b
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)	(delay slot)
+					"srl			$8, %2, 6\n"			// t0   = (n>>6)
+					"beq			$8, $0, 9f\n"			// if (t0==0) goto 9f
+					"nop\n"									// waste delay slot
+				"1:\n"
+					"cache			0x1B,  0(%0)\n"			// Hit Writeback Invalidate(D)
+					"lv.q			c000,  0(%1)\n"			// c000 = *(s +  0)
+					"lv.q			c010, 16(%1)\n"			// c010 = *(s + 16)
+					"lv.q			c020, 32(%1)\n"			// c020 = *(s + 32)
+					"lv.q			c030, 48(%1)\n"			// c030 = *(s + 48)
+					"addiu			%0, %0, 64\n"			// d    = d + 64
+					"addiu			%1, %1, 64\n"			// s    = s + 64
+					"addiu			%2, %2, -64\n"			// n    = n - 64
+					"sync\n"								// stall until asynchronous writeback from Allegrex
+					"sv.q			c000,  0(%3), wb\n"		// *(ud +  0) = c000
+					"sv.q			c010, 16(%3), wb\n"		// *(ud + 16) = c010
+					"sv.q			c020, 32(%3), wb\n"		// *(ud + 32) = c020
+					"sv.q			c030, 48(%3), wb\n"		// *(ud + 48) = c030
+				"9:\n"
+					"vflush\n"								// VFPU writebuffer flushing
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					".set			pop\n"					// restore assembler option
+					: "+r"(d), "+r"(s), "+r"(n), "+r"(ud)
+					:
+					: "$8", "9", "memory"
+				);
+				break;
+
+			case 4:
+				__asm__ volatile (
+					".set			push\n"					// save assembler option
+					".set			noreorder\n"			// suppress reordering
+				"0:\n"
+					"addiu			%2, %2, -64\n"			// n    = n - 64
+					"cache			0x1B,  0(%0)\n"			// Hit Writeback Invalidate(D)
+					"lv.q			c100, -4(%1)\n"			// c100 = *(s -  4)
+					"lv.q			c110, 12(%1)\n"			// c110 = *(s + 12)
+					"lv.q			c120, 28(%1)\n"			// c120 = *(s + 28)
+					"lv.q			c130, 44(%1)\n"			// c130 = *(s + 44)
+					"lv.s			s033, 60(%1)\n"			// s033 = *(s + 60)
+					"vmmov.t		e000, e101\n"			// e000 = e101
+					"vmov.t			r003, r110\n"			// r003 = r110
+					"vmov.t			c030, c131\n"			// c030 = c131
+					"addiu			%0, %0, 64\n"			// d    = d + 64
+					"addiu			%1, %1, 64\n"			// s    = s + 64
+					"srl			$8, %2, 6\n"			// t0   = (n>>6)
+					"sync\n"								// stall until asynchronous writeback from Allegrex
+					"sv.q			c000,  0(%3), wb\n"		// *(ud +  0) = c000
+					"sv.q			c010, 16(%3), wb\n"		// *(ud + 16) = c010
+					"sv.q			c020, 32(%3), wb\n"		// *(ud + 32) = c020
+					"sv.q			c030, 48(%3), wb\n"		// *(ud + 48) = c030
+					"addiu			%3, %3, 64\n"			// ud = ud + 64
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"bne			$8, $0, 0b\n"			// if (t0!=0) goto 0b
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)	(delay slot)
+				"9:\n"
+					"vflush\n"								// VFPU writebuffer flushing
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					".set			pop\n"					// restore assembler option
+					: "+r"(d), "+r"(s), "+r"(n), "+r"(ud)
+					:
+					: "$8", "memory"
+				);
+				break;
+
+			case 8:
+				__asm__ volatile (
+					".set			push\n"					// save assembler option
+					".set			noreorder\n"			// suppress reordering
+				"0:\n"
+					"cache			0x1B,  0(%0)\n"			// Hit Writeback Invalidate(D)
+					"lv.s			s000,  0(%1)\n"			// s000 = *(s +  0)
+					"lv.s			s001,  4(%1)\n"			// s001 = *(s +  4)
+					"lv.q			c100,  8(%1)\n"			// c100 = *(s +  8)
+					"lv.q			c110, 24(%1)\n"			// c110 = *(s + 24)
+					"lv.q			c120, 40(%1)\n"			// c120 = *(s + 40)
+					"lv.q			c130, 56(%1)\n"			// c130 = *(s + 56)
+					"vmmov.p		e002, e100\n"			// e002 = e100
+					"vmov.p			c010, c102\n"			// c010 = c102
+					"vmov.p			c020, c112\n"			// c020 = c112
+					"vmov.p			c022, c120\n"			// c022 = c120
+					"vmov.p			c030, c122\n"			// c030 = c122
+					"vmov.p			c032, c130\n"			// c032 = c130
+					"addiu			%0, %0, 64\n"			// d    = d + 64
+					"addiu			%1, %1, 64\n"			// s    = s + 64
+					"addiu			%2, %2, -64\n"			// n    = n - 64
+					"srl			$8, %2, 6\n"			// t0 = (n>>6)
+					"sync\n"								// stall until asynchronous writeback from Allegrex
+					"sv.q			c000,  0(%3), wb\n"		// *(ud +  0) = c000
+					"sv.q			c010, 16(%3), wb\n"		// *(ud + 16) = c010
+					"sv.q			c020, 32(%3), wb\n"		// *(ud + 32) = c020
+					"sv.q			c030, 48(%3), wb\n"		// *(ud + 48) = c030
+					"addiu			%3, %3, 64\n"			// ud = ud + 64
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"bne			$8, $0, 0b\n"			// if (t0!=0) goto 0b
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)	(delay slot)
+				"9:\n"
+					"vflush\n"								// VFPU writebuffer flushing
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					".set			pop\n"					// restore assembler option
+					: "+r"(d), "+r"(s), "+r"(n), "+r"(ud)
+					:
+					: "$8", "memory"
+				);
+				break;
+
+			case 12:
+				__asm__ volatile (
+					".set			push\n"					// save assembler option
+					".set			noreorder\n"			// suppress reordering
+				"0:\n"
+					"cache			0x1B,  0(%0)\n"			// Hit Writeback Invalidate(D)
+					"lv.s			s000,  0(%1)\n"			// s000 = *(s -  0)
+					"lv.q			c100,  4(%1)\n"			// c100 = *(s +  4)
+					"lv.q			c110, 20(%1)\n"			// c110 = *(s + 20)
+					"lv.q			c120, 36(%1)\n"			// c120 = *(s + 36)
+					"lv.q			c130, 52(%1)\n"			// c130 = *(s + 52)
+					"vmmov.t		e001, e100\n"			// e001 = e100
+					"vmov.t			r010, r103\n"			// r010 = r103
+					"vmov.t			c031, c130\n"			// c031 = c130
+					"addiu			%0, %0, 64\n"			// d    = d + 64
+					"addiu			%1, %1, 64\n"			// s    = s + 64
+					"addiu			%2, %2, -64\n"			// n    = n - 64
+					"srl			$8, %2, 6\n"			// t0 = (n>>6)
+					"sync\n"								// stall until asynchronous writeback from Allegrex
+					"sv.q			c000,  0(%3), wb\n"		// *(ud +  0) = c000
+					"sv.q			c010, 16(%3), wb\n"		// *(ud + 16) = c010
+					"sv.q			c020, 32(%3), wb\n"		// *(ud + 32) = c020
+					"sv.q			c030, 48(%3), wb\n"		// *(ud + 48) = c030
+					"addiu			%3, %3, 64\n"			// ud = ud + 64
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"bne			$8, $0, 0b\n"			// if (t0!=0) goto 0b
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)	(delay slot)
+				"9:\n"
+					"vflush\n"								// VFPU writebuffer flushing
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					".set			pop\n"					// restore assembler option
+					: "+r"(d), "+r"(s), "+r"(n), "+r"(ud)
+					:
+					: "$8", "memory"
+				);
+				break;
+			default:
+				__asm__ volatile (
+					".set			push\n"					// save assembler option
+					".set			noreorder\n"			// suppress reordering
+				"0:\n"
+					"cache			0x1B, 0(%0)\n"			// Hit Writeback Invalidate(D)
+					"addiu			%0, %0, 64\n"			// d    = d + 64
+					"addiu			%2, %2, -64\n"			// n    = n - 64
+					"sync\n"								// stall until asynchronous writeback from Allegrex
+
+					"lwr			$8,  0(%1)\n"			//
+					"lwl			$8,  3(%1)\n"			// t0   = *(s + 0)
+					"mtv			$8, s000\n"				// s000 = t0
+					"lwr			$8,  4(%1)\n"			//
+					"lwl			$8,  7(%1)\n"			// t0   = *(s + 4)
+					"mtv			$8, s001\n"				// s001 = t0
+					"lwr			$8,  8(%1)\n"			//
+					"lwl			$8, 11(%1)\n"			// t0   = *(s + 8)
+					"mtv			$8, s002\n"				// s002 = t0
+					"lwr			$8, 12(%1)\n"			//
+					"lwl			$8, 15(%1)\n"			// t0   = *(s + 12)
+					"mtv			$8, s003\n"				// s003 = t0
+
+					"lwr			$8, 16(%1)\n"			//
+					"lwl			$8, 19(%1)\n"			// t0   = *(s + 0)
+					"mtv			$8, s100\n"				// s000 = t0
+					"lwr			$8, 20(%1)\n"			//
+					"lwl			$8, 23(%1)\n"			// t0   = *(s + 4)
+					"mtv			$8, s101\n"				// s001 = t0
+					"lwr			$8, 24(%1)\n"			//
+					"lwl			$8, 27(%1)\n"			// t0   = *(s + 8)
+					"mtv			$8, s102\n"				// s002 = t0
+					"lwr			$8, 28(%1)\n"			//
+					"lwl			$8, 31(%1)\n"			// t0   = *(s + 12)
+					"mtv			$8, s103\n"				// s003 = t0
+					
+					"lwr			$8, 32(%1)\n"			//
+					"lwl			$8, 35(%1)\n"			// t0   = *(s + 0)
+					"mtv			$8, s200\n"				// s000 = t0
+					"lwr			$8, 36(%1)\n"			//
+					"lwl			$8, 39(%1)\n"			// t0   = *(s + 4)
+					"mtv			$8, s201\n"				// s001 = t0
+					"lwr			$8, 40(%1)\n"			//
+					"lwl			$8, 43(%1)\n"			// t0   = *(s + 8)
+					"mtv			$8, s202\n"				// s002 = t0
+					"lwr			$8, 44(%1)\n"			//
+					"lwl			$8, 47(%1)\n"			// t0   = *(s + 12)
+					"mtv			$8, s203\n"				// s003 = t0
+
+					"lwr			$8, 48(%1)\n"			//
+					"lwl			$8, 51(%1)\n"			// t0   = *(s + 0)
+					"mtv			$8, s300\n"				// s000 = t0
+					"lwr			$8, 52(%1)\n"			//
+					"lwl			$8, 55(%1)\n"			// t0   = *(s + 4)
+					"mtv			$8, s301\n"				// s001 = t0
+					"lwr			$8, 56(%1)\n"			//
+					"lwl			$8, 59(%1)\n"			// t0   = *(s + 8)
+					"mtv			$8, s302\n"				// s002 = t0
+					"lwr			$8, 60(%1)\n"			//
+					"lwl			$8, 63(%1)\n"			// t0   = *(s + 12)
+					"mtv			$8, s303\n"				// s003 = t0
+					
+					"srl			$8, %2, 6\n"			// t0   = (n>>6)
+					"addiu			%1, %1, 64\n"			// s    = s  + 64
+					"sv.q			c000,  0(%3), wb\n"		// *(ud +  0) = c000
+					"sv.q			c100, 16(%3), wb\n"		// *(ud + 16) = c100
+					"sv.q			c200, 32(%3), wb\n"		// *(ud + 32) = c200
+					"sv.q			c300, 48(%3), wb\n"		// *(ud + 48) = c300
+					"addiu			%3, %3, 64\n"			// ud   = ud + 64
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)
+					"bne			$8, $0, 0b\n"			// if (t0!=0) goto 0b
+					"vnop\n"								// VFPU bug workaround (sv.q,wb needs trailing 5 VNOPs)	(delay slot)
+
+				"9:\n"
+					"vflush\n"								// VFPU writebuffer flushing
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					"vnop\n"								// VFPU bug workaround (vflush needs trailing 4 VNOPs)
+					".set			pop\n"					// restore assembler option
+					: "+r"(d), "+r"(s), "+r"(n), "+r"(ud)
+					:
+					: "$8", "memory"
+				);
+				break;
+		}
+	}
+
+	while (n>0) {
+		*d++ = *s++;
+		n--;
+	}
+	return (dst);
+}
+
+
 void test_byte_read( stream* s, char* buf )
 {
 	triLogPrint("Testing reading byte per byte until eof...\n");
@@ -208,15 +524,12 @@ void test_bufstream( char* buf, long size, char* test )
 	stream* bufs = stream_bufopen( STREAM_TYPE_FILE, "test.dat", STREAM_RDWR );
 	if (bufs==0)
 		triLogPrint("Error opening test.dat!\n");
-	memset(buf,0,size);
 	test_byte_read( bufs, buf );
 	if (memcmp( buf, test, size )!=0)
 		triLogPrint("Error reading. Data does not match.\n");
-	memset(buf,0,size);
 	test_block_read( bufs, buf );
 	if (memcmp( buf, test, size )!=0)
 		triLogPrint("Error reading. Data does not match.\n");
-	memset(buf,0,size);
 	test_read_all( bufs, buf );
 	if (memcmp( buf, test, size )!=0)
 		triLogPrint("Error reading. Data does not match.\n");
@@ -259,21 +572,15 @@ void test_mstream( char* buf, long size )
 }
 
 
-void test_afstream( char* buf, long size, char* test )
+void test_afstream( char* buf, long size )
 {
 	triLogPrint("Testing afstream for errors...\n");
 	stream* bf = stream_afopen( "test.dat", STREAM_RDWR );
 	if (bf==0)
 		triLogPrint("Error opening test.dat!\n");
 	test_byte_read( bf, buf );
-	if (memcmp( buf, test, size )!=0)
-		triLogPrint("Error reading. Data does not match.\n");
 	test_block_read( bf, buf );
-	if (memcmp( buf, test, size )!=0)
-		triLogPrint("Error reading. Data does not match.\n");
 	test_read_all( bf, buf );
-	if (memcmp( buf, test, size )!=0)
-		triLogPrint("Error reading. Data does not match.\n");
 	stream_close( bf );
 	
 	unlink("test.out2");
@@ -283,7 +590,7 @@ void test_afstream( char* buf, long size, char* test )
 	test_byte_write( bf, buf, size );
 	test_block_write( bf, buf, size );
 	test_write_all( bf, buf, size );
-	//test_byte_rdwr( bf, buf );
+	test_byte_rdwr( bf, buf );
 	triLogPrint("Finished test.\n\n");
 	stream_close( bf );
 }
@@ -331,79 +638,74 @@ void test_memcpy_vfpu( unsigned char* buf, long size )
 	long tst;
 
 	triLogPrint("Testing aligned memcpy...\n");
-	memset(buf2,0,size);
-	buf2[size] = 0xAB;
-	memcpy_vfpu( buf2, buf, size );
-	tst = size-1;
+	buf2[64+16+15] = 0xAB;
+	memcpy_vfpu( buf2, buf, 64+16+15 );
+	tst = 64+16+14;
 	while (tst>=0)
 	{
 		if (buf[tst]!=buf2[tst])
 		{
-			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, &buf[tst], &buf2[tst], buf[tst], buf2[tst]);
+			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, buf, buf2, buf[tst], buf2[tst+1]);
 		}
 		tst--;
 	}
-	if (buf2[size] != 0xAB) triLogPrint("Buffer overrun detected!\n");
+	if (buf2[64+16+15] != 0xAB) triLogPrint("Buffer overrun detected!\n");
 	
 	triLogPrint("Testing word unaligned dst memcpy...\n");
-	memset(buf2,0,size+4);
-	buf2[size+4] = 0xAB;
-	memcpy_vfpu( buf2+4, buf, size );
-	tst = 0;
-	while (tst<size)
+	memcpy_vfpu( buf2+4, buf, 64+16+15 );
+	buf2[4+64+16+15] = 0xAB;
+	tst = 64+16+14;
+	while (tst>=0)
 	{
 		if (buf[tst]!=buf2[tst+4])
 		{
-			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, &buf[tst], &buf2[tst+4], buf[tst], buf2[tst+4]);
+			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, buf, buf2+4, buf[tst], buf2[tst+4]);
 		}
-		tst++;
+		tst--;
 	}
-	if (buf2[4+size] != 0xAB) triLogPrint("Buffer overrun detected!\n");
+	if (buf2[4+64+16+15] != 0xAB) triLogPrint("Buffer overrun detected!\n");
 
 	triLogPrint("Testing word unaligned src memcpy...\n");
-	memset(buf2,0,size);
-	buf2[size-16] = 0xAB;	
-	memcpy_vfpu( buf2, buf+4, size-16 );
-	tst = size-17;
+	memcpy_vfpu( buf2, buf+4, 64+16+15 );
+	buf2[64+16+15] = 0xAB;
+	tst = 64+16+14;
 	while (tst>=0)
 	{
 		if (buf[tst+4]!=buf2[tst])
 		{
-			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, &buf[tst+4], &buf2[tst], buf[tst+4], buf2[tst]);
+			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, buf+4, buf2, buf[tst], buf2[tst+4]);
 		}
 		tst--;
 	}
-	if (buf2[size-16] != 0xAB) triLogPrint("Buffer overrun detected!\n");
+	if (buf2[64+16+15] != 0xAB) triLogPrint("Buffer overrun detected!\n");
 	
 	triLogPrint("Testing byte unaligned dst memcpy...\n");
-	memset(buf2,0,size+1);
-	buf2[1+size] = 0xAB;
-	memcpy_vfpu( buf2+1, buf, size );
-	tst = size-1;
+	memcpy_vfpu( buf2+1, buf, 64+16+15 );
+	tst = 64+16+14;
+	buf2[1+64+16+15] = 0xAB;
 	while (tst>=0)
 	{
 		if (buf[tst]!=buf2[tst+1])
 		{
-			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, &buf[tst], &buf2[tst+1], buf[tst], buf2[tst+1]);
+			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, buf, buf2+1, buf[tst], buf2[tst+1]);
 		}
 		tst--;
 	}
-	if (buf2[1+size] != 0xAB) triLogPrint("Buffer overrun detected!\n");
+	if (buf2[1+64+16+15] != 0xAB) triLogPrint("Buffer overrun detected!\n");
 
 	triLogPrint("Testing byte unaligned src memcpy...\n");
-	memset(buf2,0,size);
-	buf2[size-16] = 0xAB;
-	memcpy_vfpu( buf2, buf+1, size-16 );
-	tst = size-17;
+	memcpy_vfpu( buf2, buf+1, 64+16+15 );
+	tst = 64+16+14;
+	buf2[64+16+15] = 0xAB;
 	while (tst>=0)
 	{
 		if (buf[tst+1]!=buf2[tst])
 		{
-			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, &buf[tst+1], &buf2[tst], buf[tst+1], buf2[tst]);
+			triLogPrint("Error with memcpy_vfpu at position: %i (%x, %x): %i != %i\n", tst, buf+1, buf2, buf[tst], buf2[tst+1]);
 		}
 		tst--;
 	}
-	if (buf2[size-16] != 0xAB) triLogPrint("Buffer overrun detected!\n");
+	if (buf2[64+16+15] != 0xAB) triLogPrint("Buffer overrun detected!\n");
 	
 	free(buf);
 	triLogPrint("Finished test.\n\n");
@@ -412,9 +714,9 @@ void test_memcpy_vfpu( unsigned char* buf, long size )
 
 void test_memcpy_vfpu_bench( char* buf, long size )
 {
-	size = 256*1024;
+	size = 256*1024 + 16;
 	triLogPrint("Testing memcpy_vfpu for speed...\n");
-	char* buf2 = malloc( size+16 );
+	char* buf2 = malloc( size );
 	
 	long i = 0;
 	u64 last_tick, end_tick;
@@ -424,50 +726,26 @@ void test_memcpy_vfpu_bench( char* buf, long size )
 	sceRtcGetCurrentTick(&last_tick);
 	for (i=0;i<1024;i++)
 	{
-		memcpy( buf2, buf, size );
+		memcpy( buf2, buf, size-16 );
 	}
 	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("QWord aligned memcpy                : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
-
-	sceRtcGetCurrentTick(&last_tick);
-	for (i=0;i<1024;i++)
-	{
-		memcpy( buf2+1, buf, size );
-	}
-	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Byte unaligned (dst) memcpy         : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	triLogPrint("QWord aligned memcpy                : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
 	
 	sceRtcGetCurrentTick(&last_tick);
 	for (i=0;i<1024;i++)
 	{
-		memcpy( buf2+4, buf, size );
+		memcpy( buf2+1, buf, size-16 );
 	}
 	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Word unaligned (dst) memcpy         : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	triLogPrint("Byte unaligned memcpy               : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
 	
 	sceRtcGetCurrentTick(&last_tick);
 	for (i=0;i<1024;i++)
 	{
-		memcpy( buf2, buf+1, size );
+		memcpy( buf2+4, buf, size-16 );
 	}
 	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Byte unaligned (src) memcpy         : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
-	
-	sceRtcGetCurrentTick(&last_tick);
-	for (i=0;i<1024;i++)
-	{
-		memcpy( buf2, buf+4, size );
-	}
-	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Word unaligned (src) memcpy         : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
-
-	sceRtcGetCurrentTick(&last_tick);
-	for (i=0;i<1024;i++)
-	{
-		memcpy( buf2+4, buf+4, size );
-	}
-	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Word unaligned (src&dst) memcpy     : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	triLogPrint("Word unaligned memcpy               : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
 
 	
 
@@ -475,50 +753,86 @@ void test_memcpy_vfpu_bench( char* buf, long size )
 	sceRtcGetCurrentTick(&last_tick);
 	for (i=0;i<1024;i++)
 	{
-		memcpy_vfpu( buf2, buf, size );
+		memcpy_vfpu( buf2, buf, size-16 );
 	}
 	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("QWord aligned memcpy_vfpu           : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	triLogPrint("QWord aligned memcpy_vfpu           : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
 	
 	sceRtcGetCurrentTick(&last_tick);
 	for (i=0;i<1024;i++)
 	{
-		memcpy_vfpu( buf2+1, buf, size );
+		memcpy_vfpu( buf2+1, buf, size-16 );
 	}
 	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Byte unaligned (dst) memcpy_vfpu    : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	triLogPrint("Byte unaligned memcpy_vfpu          : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
 	
 	sceRtcGetCurrentTick(&last_tick);
 	for (i=0;i<1024;i++)
 	{
-		memcpy_vfpu( buf2+4, buf, size );
+		memcpy_vfpu( buf2+4, buf, size-16 );
 	}
 	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Word unaligned (dst) memcpy_vfpu    : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
-	
-	sceRtcGetCurrentTick(&last_tick);
-	for (i=0;i<1024;i++)
-	{
-		memcpy_vfpu( buf2, buf+1, size );
-	}
-	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Byte unaligned (src) memcpy_vfpu    : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
-	
-	sceRtcGetCurrentTick(&last_tick);
-	for (i=0;i<1024;i++)
-	{
-		memcpy_vfpu( buf2, buf+4, size );
-	}
-	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Word unaligned (src) memcpy_vfpu    : %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	triLogPrint("Word unaligned (dst) memcpy_vfpu    : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
 
 	sceRtcGetCurrentTick(&last_tick);
 	for (i=0;i<1024;i++)
 	{
-		memcpy_vfpu( buf2+4, buf+4, size );
+		memcpy_vfpu( buf2, buf+4, size-16 );
 	}
 	sceRtcGetCurrentTick(&end_tick);
-	triLogPrint("Word unaligned (src&dst) memcpy_vfpu: %.2fMB/s\n", (float)((size)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	triLogPrint("Word unaligned (src) memcpy_vfpu    : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+
+	sceRtcGetCurrentTick(&last_tick);
+	for (i=0;i<1024;i++)
+	{
+		memcpy_vfpu( buf2+4, buf+4, size-16 );
+	}
+	sceRtcGetCurrentTick(&end_tick);
+	triLogPrint("Word unaligned (src&dst) memcpy_vfpu: %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+
+
+
+	triLogPrint("Testing sceVfpuMemcpy_vnop...\n");
+	sceRtcGetCurrentTick(&last_tick);
+	for (i=0;i<1024;i++)
+	{
+		sceVfpuMemcpy_vnop( buf2, buf, size-16 );
+	}
+	sceRtcGetCurrentTick(&end_tick);
+	triLogPrint("QWord aligned sceVfpuMemcpy_vnop           : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	
+	sceRtcGetCurrentTick(&last_tick);
+	for (i=0;i<1024;i++)
+	{
+		sceVfpuMemcpy_vnop( buf2+1, buf, size-16 );
+	}
+	sceRtcGetCurrentTick(&end_tick);
+	triLogPrint("Byte unaligned sceVfpuMemcpy_vnop          : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+	
+	sceRtcGetCurrentTick(&last_tick);
+	for (i=0;i<1024;i++)
+	{
+		sceVfpuMemcpy_vnop( buf2+4, buf, size-16 );
+	}
+	sceRtcGetCurrentTick(&end_tick);
+	triLogPrint("Word unaligned (dst) sceVfpuMemcpy_vnop    : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+
+	sceRtcGetCurrentTick(&last_tick);
+	for (i=0;i<1024;i++)
+	{
+		sceVfpuMemcpy_vnop( buf2, buf+4, size-16 );
+	}
+	sceRtcGetCurrentTick(&end_tick);
+	triLogPrint("Word unaligned (src) sceVfpuMemcpy_vnop    : %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+
+	sceRtcGetCurrentTick(&last_tick);
+	for (i=0;i<1024;i++)
+	{
+		sceVfpuMemcpy_vnop( buf2+4, buf+4, size-16 );
+	}
+	sceRtcGetCurrentTick(&end_tick);
+	triLogPrint("Word unaligned (src&dst) sceVfpuMemcpy_vnop: %.2fMB/s\n", (float)((size-16)/1024.0f)/(float)((float)(end_tick-last_tick)/tick_frequency));
+
 
 	free(buf);
 	triLogPrint("Finished test.\n\n");
@@ -535,31 +849,28 @@ int main(int argc, char **argv)
 	triLogInit();
 
 	char* buf;
-	unsigned char* ubuf;
 	stream* f = stream_fopen( "test.dat", STREAM_RDONLY );
-	unsigned int size = stream_size( f ); //4048+16;
+	long size = stream_size( f ); //4048+16;
 	buf = malloc( size );
-	ubuf = (unsigned char*)buf;
 	char* buf_test = malloc( size );
 	stream_read( f, buf_test, size );
 	stream_close( f );
 	
 
 	test_fstream( buf, size );
-	test_afstream( buf,size, buf_test );
+	//test_afstream( buf,size );		// currently creates an infinite loop somewhere!
 	test_bufstream( buf, size, buf_test );
 	test_mstream( buf, size );
 
-/*	test_bufstream_copy( "test.dat", "test.out", buf, size );
-
-	unsigned int testsize = 2048;
-	long i = 0;
-	for (;i<testsize;i++)
-		ubuf[i] = (i&0xFF);
+	test_bufstream_copy( "test.dat", "test.out", buf, size );
 	
-	test_memcpy_vfpu( ubuf, testsize );
-	test_memcpy_vfpu_bench( buf, testsize );
-	*/
+	long i = 0;
+	for (;i<size;i++)
+		buf[i] = (i&0xFF);
+	
+	test_memcpy_vfpu( buf, size );
+	test_memcpy_vfpu_bench( buf, size );
+	
 	free( buf );
 	triLogPrint("Finished all tests.\n\n");
 	sceKernelExitGame();

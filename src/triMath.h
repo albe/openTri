@@ -77,7 +77,7 @@ static inline triS32 triMathRInt (const triFloat X)
 triMathWrap
 ===========
 */
-static inline triFloat triMathWrap (const triFloat Min, triFloat Num, const triFloat Max)
+static inline triFloat triMathWrap (const triFloat Min, triFloat Num, const trFloat Max)
 {
 	triFloat	Diff;
 

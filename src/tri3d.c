@@ -66,7 +66,6 @@ void tri3dInit()
 	tri3dRendertargetWidth = SCREEN_WIDTH;
 	tri3dRendertargetHeight = SCREEN_HEIGHT;
 	
-	triBegin();
 	triDepthbuffer = vrelptr(triVAlloc(FRAME_BUFFER_SIZE*2));
 	sceGuDepthBuffer( triDepthbuffer, FRAME_BUFFER_WIDTH );
 	sceGuDepthRange(65535,0);
@@ -75,10 +74,10 @@ void tri3dInit()
 	triEnable(TRI_DEPTH_WRITE);
 	sceGuClearDepth(0x0);
 	
-	sceGuDisable(GU_LIGHTING);
-	sceGuFrontFace(GU_CW);
-	sceGuEnable(GU_CULL_FACE);
+	sceGuFrontFace(GU_CCW);
 	sceGuShadeModel(GU_SMOOTH);
+	sceGuDisable(GU_BLEND);
+	sceGuEnable(GU_CULL_FACE);
 	sceGuEnable(GU_TEXTURE_2D);
 	sceGuTexWrap(GU_REPEAT,GU_REPEAT);
 	sceGuEnable(GU_CLIP_PLANES);
@@ -88,8 +87,6 @@ void tri3dInit()
 	sceGumMatrixMode(GU_MODEL);
 	sceGumLoadIdentity();
 	tri3dPerspective( 75.0f );
-	triRendertoscreen();
-	triEnd();
 }
 
 void tri3dClose()
@@ -121,14 +118,6 @@ static triS32 nextPow2(triU32 w)
 	return (n);
 }
 
-
-void tri3dRenderToAlpha(triS32 enable)
-{
-	if (enable)
-		sceGuSendCommandi(211,((GU_COLOR_BUFFER_BIT|GU_STENCIL_BUFFER_BIT) << 8)|0x1);
-	else
-		sceGuSendCommandi(211,0);
-}
 
 void tri3dRenderbufferCreate( triS32 n, triS32 psm, triS32 width, triS32 height )
 {
@@ -184,7 +173,7 @@ void tri3dRenderbufferSetTexture( triU32 n )
 	sceGuTexMode(triRenderbufferPsm[n],0,0,0);
 	sceGuTexImage(0,triRenderbufferTwidth[n],triRenderbufferTheight[n],triRenderbufferTwidth[n],triRenderbuffer[n]);
 	sceGuTexScale( (triFloat)triRenderbufferWidth[n]/triRenderbufferTwidth[n], (triFloat)triRenderbufferHeight[n]/triRenderbufferTheight[n] );
-	sceGuTexFunc(GU_TFX_REPLACE,GU_TCC_RGBA);
+	sceGuTexFunc(GU_TFX_REPLACE,GU_TCC_RGB);
 	sceGuTexFilter(GU_LINEAR,GU_LINEAR);
 	sceGuEnable(GU_TEXTURE_2D);
 	
@@ -195,7 +184,6 @@ void tri3dRenderbufferSetTexture( triU32 n )
 void tri3dFramebufferSetRendertarget()
 {
 	triRendertoscreen();
-	tri3dRenderToAlpha(0);
 	tri3dRendertargetWidth = SCREEN_WIDTH;
 	tri3dRendertargetHeight = SCREEN_HEIGHT;
 }
@@ -243,6 +231,7 @@ void tri3dDepthbufferSetTexture( triU32 mode, void* ramp )
 void tri3dRenderFullscreenTexture( triFloat u0, triFloat v0, triFloat u1, triFloat v1 )
 {
 	triFloat cur_x = 0, cur_u = u0;
+	triFloat start;
 	triFloat xEnd = (triFloat)tri3dRendertargetWidth;
 	triFloat slice = 64.f;
 	triFloat ustep = (u1-u0)/(triFloat)tri3dRendertargetWidth * slice;
@@ -250,7 +239,7 @@ void tri3dRenderFullscreenTexture( triFloat u0, triFloat v0, triFloat u1, triFlo
 	sceGuTexWrap(GU_CLAMP,GU_CLAMP);
 	triDisable(TRI_DEPTH_TEST);
 	triDisable(TRI_DEPTH_MASK);
-	for( ;cur_x<xEnd; )
+	for( start=0; start<xEnd; start+=slice )
 	{
 		triVertUVf* vertices = (triVertUVf*)sceGuGetMemory(2 * sizeof(triVertUVf));
 
@@ -283,13 +272,14 @@ void tri3dRenderFullscreenTexture( triFloat u0, triFloat v0, triFloat u1, triFlo
 void tri3dRenderTexture( triFloat x, triFloat y, triFloat u0, triFloat v0, triFloat u1, triFloat v1 )
 {
 	triFloat cur_x = x, cur_u = u0;
-	triFloat xEnd = x+(u1-u0);
+	triFloat start;
+	triFloat xEnd = (u1-u0);
 	triFloat slice = 64.f;
 	triFloat ustep = slice;
 
 	triDisable(TRI_DEPTH_TEST);
 	triDisable(TRI_DEPTH_MASK);
-	for( ;cur_x<xEnd; )
+	for( start=0; start<xEnd; start+=slice )
 	{
 		triVertUVf* vertices = (triVertUVf*)sceGuGetMemory(2 * sizeof(triVertUVf));
 

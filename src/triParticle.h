@@ -177,8 +177,6 @@ enum triParticleActions {
 	};
 
 
-typedef struct triParticleSystem triParticleSystem;
-
 /** Custom particle render callback
   * @param s Pointer to particle system
   * @param p Pointer to particle structure to render
@@ -186,7 +184,7 @@ typedef struct triParticleSystem triParticleSystem;
 typedef void (*triParticleRenderer)(triParticleSystem* s, triParticle* p);
 
 
-struct triParticleSystem
+typedef struct triParticleSystem
 {
 	triS32					ID;							// Particle system ID
 	triS32					typeID;						// Particle system type ID - see triParticleEmitterTypes
@@ -213,10 +211,9 @@ struct triParticleSystem
 
 	triS32					numVerticesPerParticle;		// numbers to allocate the right amount of memory
 
-	void* 					vertices[2];				// particle vertice list for rendering (created during update)
+	void* 					vertices;					// particle vertice list for rendering (created during update)
 	triS32					numVertices;
 	triS32					vertexFormat;
-	triS32					vindex;
 
 	triVec3f				boundingBox[8];
 	triS32					updateFlag;
@@ -224,7 +221,7 @@ struct triParticleSystem
 	
 	triParticleRenderer		render;						// function pointer to custom particle rendering function
 	struct triParticleSystem*	next;
-};
+} triParticleSystem;
 
 
 

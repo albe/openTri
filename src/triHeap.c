@@ -4,15 +4,15 @@
 #include <string.h>
 
 // A MEMORY BLOCK ENTRY IS MADE UP LIKE THAT:
-// bit:  31     30    29 - 15    14-0
+// bit:  31     32    30 - 15    14-0
 //		free   block    prev     size
 //
 // bit 31: free bit, indicating if block is allocated or not
 // bit 30: blocked bit, indicating if block is part of a larger block (0) - used for error resilience
-// bit 29-15: block index of previous block
+// bit 30-15: block index of previous block
 // bit 14- 0: size of current block
 //
-// This management can handle a max amount of 2^16-1 = 65535 blocks, which resolves to 64MB at blocksize of 1024 bytes
+// This management can handle a max amount of 2^15 = 32768 blocks, which resolves to 32MB at blocksize of 1024 bytes
 //
 #define __CBLOCK_GET_SIZE(x)    ((x & 0x7FFF))
 #define __CBLOCK_GET_PREV(x)    ((x >> 15) & 0x7FFF)
@@ -46,10 +46,10 @@ triHeap* triHeapCreate( void* base, triU32 size, triU32 block_size )
 
 	mem->_block_size = block_size;
 	mem->_n_blocks = size/block_size;
-	if (mem->_n_blocks>65535)
+	if (mem->_n_blocks>32768)
 	{
-		mem->_n_blocks = 65535;
-		mem->_block_size = size >> 16;
+		mem->_n_blocks = 32768;
+		mem->_block_size = size >> 15;
 	}
 	mem->_free = mem->_n_blocks;
 	mem->_largest_block = mem->_n_blocks;
@@ -279,6 +279,7 @@ void* triHeapRealloc( triHeap* mem, void* ptr, triU32 size )
 	triU32 prevfree = (prev<block && __CBLOCK_GET_FREEBLOCK(blocks[prev])==3);
 	if (prevfree)
 		newsize += psize;
+
 
 	// We do this because realloc spec says that the ptr may not be changed if we cannot realloc
 	if (newsize<0)

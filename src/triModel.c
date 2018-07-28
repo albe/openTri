@@ -845,6 +845,24 @@ void triMeshOptimize( triMesh* mesh, triS32 format )
 			verPad = ((triU32)&v + sizeof(v) - (triU32)&v.z) - sizeof(v.z);
 			break;
 		}
+		case TRI_VERTFASTCF_FORMAT:
+		{
+			triVertFastUVf v;
+			texPad = 0;
+			colPad = ((triU32)&v.x - (triU32)&v.color) - sizeof(v.color);
+			norPad = 0;
+			verPad = ((triU32)&v + sizeof(v) - (triU32)&v.z) - sizeof(v.z);
+			break;
+		}
+		case TRI_VERTFASTCNF_FORMAT:
+		{
+			triVertFastUVf v;
+			texPad = 0;
+			colPad = ((triU32)&v.nx - (triU32)&v.color) - sizeof(v.color);
+			norPad = ((triU32)&v.x - (triU32)&v.nz) - sizeof(v.nz);
+			verPad = ((triU32)&v + sizeof(v) - (triU32)&v.z) - sizeof(v.z);
+			break;
+		}
 	}
 	/*
 	triS32 sz = texSize*2;
@@ -861,6 +879,7 @@ void triMeshOptimize( triMesh* mesh, triS32 format )
 	
 	void* v = vdata;
 	triVertUVCN* src = (triVertUVCN*)mesh->verts;
+	triFloat* fsrc = (triFloat*)mesh->verts;
 	triS32 i, j;
 	for (j=0;j<mesh->numVerts;j++)
 	{
@@ -918,14 +937,6 @@ void triMeshOptimize( triMesh* mesh, triS32 format )
 				if (format&GU_COLOR_5650)
 					*v16++ = (triU16)(((r >> 3)<<11) | ((g >> 2)<<5) | (b >> 3));
 				v = v16;
-				/*if (format&GU_COLOR_4444)
-					v->color = (triU16)(TORGBA4444(src->color));
-				else
-				if (format&GU_COLOR_5551)
-					v->color = (triU16)(TORGBA5551(src->color));
-				else
-				if (format&GU_COLOR_5650)
-					v->color = (triU16)(TORGBA5650(src->color));*/
 			}
 		}
 		

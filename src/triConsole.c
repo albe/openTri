@@ -30,6 +30,8 @@
 #include "triConsole.h"
 #include "triLog.h"
 
+//#define printf pspDebugScreenprintf
+
 // Linked lists
 triCVar* 		triCVars = 0;
 triCmdAlias*	triAliases = 0;
@@ -48,9 +50,7 @@ triCmd triCmdList[] =	 {	{ "exit", cmd_exit, 0, 0, "Exit console", 0, 0 },
 							{ "echo", cmd_echo, 1, "text", "Echo out text to console", 0, 0 },
 							{ "wait", cmd_wait, 0, 0, "Wait until next frame", 0, 0 },
 							{ "alias", cmd_alias, 1, "name [commands]", "Bind commands to an alias or return current binding", 0, 0 },
-							{ "aliases", cmd_aliases, 0, 0, "Print all registered aliases", 0, 0 },
 							{ "exec", cmd_exec, 1, "filename", "Execute a script file", 0, 0 },
-							{ "eval", cmd_eval, 1, "term", "Evaluate a term.", 0, 0 },
 							{ 0 } // List terminator
 						};
 
@@ -119,27 +119,19 @@ static triChar* infix2prn( triChar* expr )
 		if (*expr==')')
 		{
 			while (i<1024 && op>0 && opstack[--op]!='(')
-			{
 				result[i++] = opstack[op];
-			}
 			expr++;
 		} else
 		if (*expr=='+' || *expr=='-')
 		{
-			result[i++] = ' ';
-			while(i<1024 && op>0 && (opstack[op-1]=='*' || opstack[op-1]=='/'))
-			{
-				result[i++] = opstack[--op];
-			}
+			while(i<1024 && op>0 && (opstack[--op]=='*' || opstack[op]=='/'))
+				result[i++] = opstack[op];
 			opstack[op++] = *expr++;
 		} else
 		if (*expr=='*' || *expr=='/')
 		{
-			result[i++] = ' ';
-			while(i<1024 && op>0 && (opstack[op-1]=='*' || opstack[op-1]=='/'))
-			{
-				result[i++] = opstack[--op];
-			}
+			while(i<1024 && op>0 && (opstack[--op]=='*' || opstack[op]=='/'))
+				result[i++] = opstack[op];
 			opstack[op++] = *expr++;
 		} else
 			result[i++] = *expr++;
@@ -208,11 +200,11 @@ float triatof( const triChar* str )
 static float evaluate( triChar* term )
 {
 	triChar* prn = infix2prn( term );
-
+	
 	float result[128];
 	result[0] = 0.0f;
 	triS32 r = 0;
-	while (*prn && r<128)
+	while (*prn)
 	{
 		if (*prn == ' ')
 			prn++;
@@ -247,7 +239,6 @@ static float evaluate( triChar* term )
 		else
 		{
 			result[r++] = triatof( prn );
-			//triConsolePrintf("result[%i] = %.2f\n",r-1,result[r-1]);
 			prn += varlen(prn);
 		}
 	}
@@ -267,15 +258,15 @@ void triCVarSet( const triChar* name, const triChar* value )
 		return;
 	}
 	
-	res->fvalue = evaluate( value );
+	res->fvalue = triatof( value );
 	
 	if (res->flags&TRI_CVAR_ALLOC)
 		if (res->svalue) triFree(res->svalue);
 	
 	if (res->fvalue!=TRI_INVALID_VAL)
 	{
-		res->svalue = triMalloc( 32 );
-		snprintf( res->svalue, 31, "%f", res->fvalue );
+		res->svalue = triMalloc( 33 );
+		snprintf( res->svalue, 33, "%f", res->fvalue );
 	}
 	else
 	{
@@ -376,9 +367,10 @@ triCVar* triCVarFind( const triChar* name )
 triCmd* triCmdFind( const triChar* name )
 {
 	triS32 i = 0;
+	triS32 slen = strlen(name);
 	while (triCmdList[i].name!=0)
 	{
-		if (strcmp(name,triCmdList[i].name)==0)
+		if (strncmp(name,triCmdList[i].name,slen)==0)
 			return (&triCmdList[i]);
 		i++;
 	}
@@ -387,7 +379,7 @@ triCmd* triCmdFind( const triChar* name )
 	
 	while (list!=0)
 	{
-		if (strcmp(name,list->name)==0)
+		if (strncmp(name,list->name,slen)==0)
 			return (list);
 		list = list->next;
 	}
@@ -541,25 +533,25 @@ triS32 triAliasCmd()
 	}
 	
 	// Allow aliases to to be fed with arguments, making things like 'alias @ echo;@ "aliased echo output"' possible
-	triS32 len = strlen(alias->cmd)+1+strlen(triCmdArgs())+1;
-	/*triS32 i = 1;
+	triS32 len = strlen(alias->cmd)+1;
+	triS32 i = 1;
 	for (;i<triCmdArgc();i++)
 		len += strlen(triCmdArgv(i))+1;
-	*/
+	
 	triChar* buffer = triMalloc(len);
 	if (buffer==0)
 		triCmdExecute( alias->cmd );
 	else
 	{
-		sprintf( buffer, "%s %s", alias->cmd, triCmdArgs() );
-		/*len = strlen(alias->cmd)+1;
+		sprintf( buffer, "%s ", alias->cmd );
+		len = strlen(alias->cmd)+1;
 		i = 1;
 		for (;i<triCmdArgc();i++)
 		{
 			sprintf( buffer+len, "%s ", triCmdArgv(i) );
 			len += strlen(triCmdArgv(i))+1;
 		}
-		buffer[len-1] = 0;*/
+		buffer[len-1] = 0;
 		triCmdExecute( buffer );
 		triFree( buffer );
 	}
@@ -654,18 +646,6 @@ triChar* cmd_cvars()
 	return(0);
 }
 
-triChar* cmd_aliases()
-{
-	triCmdAlias* list = triAliases;
-	
-	while (list!=0)
-	{
-		triConsolePrintf("%s \"%s\"\n", list->name, list->cmd);
-		list = list->next;
-	}
-	return(0);
-}
-
 triChar* cmd_echo()
 {
 	triS32 i;
@@ -702,13 +682,6 @@ triChar* cmd_exec()
 	return(0);
 }
 
-
-triChar* cmd_eval()
-{
-	triFloat val = evaluate(triCmdArgs());
-	triConsolePrintf("%f\n", val);
-	return (0);
-}
 
 // Execute the line containing cmds as if written to console
 void triCmdExecute( triChar* line )
@@ -751,7 +724,7 @@ triChar* triCmdTokenize( triChar* line )
 			triFree(triCmdCurArgv[i]);
 			triCmdCurArgv[i] = 0;
 		}
-
+	
 	i = 0;
 	// strip whitespaces
 	while (*line && *line<=' ') line++;
@@ -772,65 +745,44 @@ triChar* triCmdTokenize( triChar* line )
 		    (!(quotes&1) && line[i]=='"'))
 		{
 			// Save arguments start
-			if (triCmdCurArgc==1)
+			if (triCmdCurArgc==0)
 				args = line;
-
-			if (line[0]=='$')
-			{
-				triChar buf[64];
-				strncpy( buf, &line[1], i-1 );
-				buf[i-1] = 0;
-				triCVar* cvar = triCVarFind(buf);
-				if (cvar!=0)
-				{
-					triCmdCurArgv[triCmdCurArgc] = triMalloc(strlen(cvar->svalue)+1);
-					strcpy(triCmdCurArgv[triCmdCurArgc], cvar->svalue);
-					goto DONEARGV;
-				}
-			}
+			
 			// Strip quotes
-			triS32 len = i;
-			if (line[0]=='"' && line[i]=='"')
+			if (line[0]=='"' || line[0]=='\'')
 			{
 				i--;
 				line++;
-				len-=1;
 			}
-			triCmdCurArgv[triCmdCurArgc] = triMalloc(len+1);
+			triCmdCurArgv[triCmdCurArgc] = triMalloc(i+1);
 			if (triCmdCurArgv[triCmdCurArgc]==0)
 			{
 				triLogError("ERROR ALLOCATING ARGV BUFFER!\n");
 				return(0);
 			}
-			strncpy( triCmdCurArgv[triCmdCurArgc], line, len );
-			triCmdCurArgv[triCmdCurArgc][len] = 0;
-		DONEARGV:
+			strncpy( triCmdCurArgv[triCmdCurArgc], line, i );
+			triCmdCurArgv[triCmdCurArgc][i] = 0;
+			if (triCmdCurArgv[triCmdCurArgc][i-1]=='"') triCmdCurArgv[triCmdCurArgc][i-1]=0;
 			triCmdCurArgc++;
 			if (line[i]==0 || line[i]=='\n')
 				break;
-			if (line[i]==';')
+			if (!(quotes&1) && line[i]==';')
 				break;
-			i++;
+			if (line[i]!=0) i++;
 			line += i;
 			i = 0;
-			while (*line && *line<=' ') line++;
 			continue;
 		}
 		i++;
 	}
 	
-	// Create args string
+	// Create args string	
 	if (triCmdCurArgc>1)
 	{
-		triS32 size = &line[i]-args;
-		triCmdCurArgs = triMalloc(size+1);
-		strncpy( triCmdCurArgs, args, size );
-		triCmdCurArgs[size] = 0;
+		triCmdCurArgs = triMalloc(&line[i]-args+1);
+		strncpy( triCmdCurArgs, args, &line[i]-args );
 	}
-	
-	if (line[i]==0)
-		return 0;
-	return &line[i+1];
+	return &line[i];
 }
 
 
@@ -954,30 +906,22 @@ void triConsoleUpdate()
 	static triChar line[1024];
 	
 	/*
-	triS32 ch;
-	while (1)
+	triS32 ch = getc( stdin );
+	if (ch==EOF||ch==0)
+		return;
+	
+	if (ch=='\n')
 	{
-		ch = getc( stdin );
-		if (ch==EOF||ch==0)
-			break;
-		
-		if (ch=='\t')
-		{
-			triChar* cmd = triCmdComplete(line);
-		}
-		else
-		if (ch=='\n')
-		{
-			line[linepos] = 0;
-			linepos = 0;
-			if (strlen(line)>0)
-				triCmdExecute( line );
-			triConsolePrint(">");
-		}
-		else
-			line[linepos++] = (triChar)ch;
+		line[linepos] = 0;
+		linepos = 0;
+		if (strlen(line)>0)
+			triCmdExecute( line );
+		triConsolePrint(">");
 	}
+	else
+		line[linepos++] = (triChar)ch;
 	*/
+	
 	gets( line );
 	if (strlen(line)>0)
 		triCmdExecute( line );

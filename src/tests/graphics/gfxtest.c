@@ -5,8 +5,6 @@
 #include "../../triLog.h"
 #include "../../triMemory.h"
 #include "../../triVAlloc.h"
-#include "../../triFont.h"
-#include "../../triInput.h"
 
 PSP_MODULE_INFO("triGfxTest", 0x0, 1, 1);
 PSP_MAIN_THREAD_ATTR(PSP_THREAD_ATTR_VFPU);
@@ -56,27 +54,17 @@ int main(int argc, char **argv)
 	SetupCallbacks();
 	
 	triLogInit();
-	triFontInit();
 	triMemoryInit();
-	triInputInit();
 	triInit( GU_PSM_8888, 1 );
+	pspDebugScreenInit();
 	
-	// Make Debug font mono spaced at width 7
-	triFontSetMono( 0, 7 );
-	
-	/*
-	triImage* triSprite = triImageLoadTga( "sprite.tga" );
+	/*triImage* triSprite = triImageLoadTga( "sprite.tga" );
 	if (triSprite==0)
 	{
 		triLogError("Error loading sprite.tga!\n");
 		sceKernelExitGame();
 		return 0;
 	}
-	triS32 i = 0;
-	for (;i<256;i++)
-		triImagePaletteSet( triSprite, i, i, i, i, i );
-	*/
-	/*
 	triImageSaveTri( "sprite_gzip.tri", triSprite, TRI_IMG_FLAGS_GZIP );
 	
 	//triImageSaveTri( "sprite_rle.tri", triSprite, TRI_IMG_FLAGS_RLE );
@@ -145,77 +133,45 @@ int main(int argc, char **argv)
 	triBig->tex_height = 1024;*/
 	
 	triSpriteMode( 480, 272, 0 );
-	triSInt bigMode = 0;
 	triFloat x = 0.f, y = 0.f;
 	triFloat dx = 2.f, dy = 1.0f;
 	
 	triFloat angle = 0.0f;
-	triEnable(TRI_VBLANK);	// Enable vsync
+	triEnable(TRI_PSEUDO_FSAA);
+	triEnable(TRI_VBLANK);
 	while (isrunning)
 	{
-		if (bigMode == 0)
-		{
-			// Blit a moving background in spritemode
-			triBltSprite( 0.f, 0.f, x, y, triBig );
-			x += dx;
-			y += dy;
-			if (x>=(triBig->width-480) || x<=0) dx = -dx;
-			if (y>=(triBig->height-272) || y<=0) dy = -dy;
-		}
-		else
-		if (bigMode == 1)
-		{  
-			triClear( 0xFFFFFFFF );
-			// Draw centered background with changing scale factor
-			triDrawImageCenterScaled( 240, 141, sinf(angle) + 1.5f, triBig );
-		}
+		triClear( 0xFF0000 );
 		
-		// Draw some shapes
-		triDrawRect( 64, 64, 64, 64, 0xff000000 );
+		triDrawSprite( 0.f, 0.f, x, y, triBig );
+		x += dx;
+		y += dy;
+		if (x>=(triBig->width-480) || x<=0) dx = -dx;
+		if (y>=(triBig->height-272) || y<=0) dy = -dy;
+
+
 		triDrawRectRotate( 64, 64, 64, 64, 0xff0000ff, angle );
-		triDrawRegPolyGrad( 420, 150, 32, 0xff0000ff, 0xffff0000, 5, 360.f-angle );
-		triDrawStarGrad( 64, 230, 16, 32, 0xffffffff, 0xff00ffff, 5, angle );
-		
-		// Draw an antialiased circle...
-		triEnable(TRI_AALINE);
-		triDrawCircleOutline( 320, 230, 32, 0xff00ffff );
-		triDisable(TRI_AALINE);	// Don't keep that enabled for filled primitives... makes everything go bogus
-		triDrawCircle( 320, 230, 32, 0xff00ffff );
-		
-		// Draw some images
+		//triDrawRegPolyGrad( 64, 240, 32, 0xffff00ff, 0xff00ffff, 5, angle );
+		//triDrawCircleGrad( 64, 240, 32, 0xffff00ff, 0xff00ffff );
+		triDrawStarGrad( 64, 240, 16, 32, 0xffffffff, 0xff00ffff, 5, angle );
 		triDrawImageRotate2( 196, 128, angle, triTri );
 	 	triDrawImageAnimation( 280, 32, triAni );
 
-	 	triImageBlend(GU_ADD,GU_SRC_ALPHA,GU_ONE_MINUS_SRC_ALPHA,0,0);
-	 	sceGuTexFunc(GU_TFX_REPLACE, GU_TCC_RGBA);
-	 	//triDrawImage( 164, 164, 32, 32, 0, 0, 32, 32, triSprite );
-
 		triImageAnimationUpdate( triAni );
-		
-		triFontActivate(0);
-		triFontPrintf( 1, 1, 0xff000000, "FPS: %.2f - MAX: %.2f - MIN: %.2f", triFps(), triFpsMax(), triFpsMin() );
-		triFontPrintf( 1,11, 0xff000000, "CPU: %.2f%% - GPU: %.2f%%", triCPULoad(), triGPULoad() );
-		triFontPrintf( 1,21, 0xff000000, "VRAM: %iKb - largest: %iKb", triVMemavail()/1024, triVLargestblock()/1024 );
-		triFontPrintf( 0, 0, 0xffffffff, "FPS: %.2f - MAX: %.2f - MIN: %.2f", triFps(), triFpsMax(), triFpsMin() );
-		triFontPrintf( 0,10, 0xffffffff, "CPU: %.2f%% - GPU: %.2f%%", triCPULoad(), triGPULoad() );
-		triFontPrintf( 0,20, 0xffffffff, "VRAM: %iKb - largest: %iKb", triVMemavail()/1024, triVLargestblock()/1024 );
-		angle += 0.05f;
-		if (angle>=360.f) angle-=360.f;
-		
-		triInputUpdate();
-		if (triInputPressed(PSP_CTRL_CROSS))
-		{
-			bigMode = (bigMode + 1)%2;
-		}
-		
 		triSwapbuffers();
+		pspDebugScreenSetOffset((triS32)vrelptr(triFramebuffer2));
+		pspDebugScreenSetXY(0,0);
+		pspDebugScreenPrintf( "FPS: %.2f - MAX: %.2f - MIN: %.2f", triFps(), triFpsMax(), triFpsMin() );
+		pspDebugScreenSetXY(0,1);
+		pspDebugScreenPrintf( "CPU: %.2f%% - GPU: %.2f%%", triCPULoad(), triGPULoad() );
+		pspDebugScreenSetXY(0,2);
+		pspDebugScreenPrintf( "VRAM: %iKb - largest: %iKb", triVMemavail()/1024, triVLargestblock()/1024 );
+		angle += 0.05f;
 	}
 
 	triImageAnimationFree( triAni );
 	triImageFree( triTri );
-	triImageFree( triBig );
 	triClose();
-	triFontShutdown();
 	triMemoryCheck();
 	triMemoryShutdown();
 	sceKernelExitGame();

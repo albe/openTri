@@ -68,12 +68,11 @@ int main(int argc, char **argv)
 	// Init font library
 	triFontInit();
 
-	// Make Debug font mono spaced at width 7
-	triFontSetMono( 0, 7 );
+	// Make Debug font mono spaced at width 6
+	triFontMakeMono( 0, 6 );
 	
 	// Load first font, 12 point, 128x128 texture, in VRAM
 	triFont *verdana12 = triFontLoad("./verdana.ttf", 12, TRI_FONT_SIZE_POINTS, 128, TRI_FONT_VRAM);
-	//triFont *verdana12 = triFontLoadTRF("./verdana12.trf");
 
     // Load second font, 20 pixels, 128x128 texture, in VRAM
 	triFont *impact20 = triFontLoad("./impact.ttf", 20, TRI_FONT_SIZE_PIXELS, 128, TRI_FONT_VRAM);
@@ -82,7 +81,7 @@ int main(int argc, char **argv)
 	if(!verdana12 || !impact20)
 		sceKernelExitGame();
 
-	//triFontSaveTRF( verdana12, "verdana12.trf" );
+	//triFontSaveTRF( verdana12, "verdana8.trf" );
 	while (isrunning)
 	{
 		triClear( 0 );
@@ -91,28 +90,24 @@ int main(int argc, char **argv)
 		triFontActivate(verdana12);
 
 		// Draw our character set using the first font
-		triFontPrint(160, 40, RED, " .,!?:;0123456789");
-		triFontPrint(160, 60, GREEN, "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-		triFontPrint(160, 80, BLUE, "abcdefghijklmnopqrstuvwxyz");
-		triFontPrint(160, 100, WHITE, "@#$%^&*+-()[]{}<>/\\|~`\"\n\ttabs and \tline breaks\n\tare \t\t\tsupported now!");
+		triFontPrint(100, 50, RED, " .,!?:;0123456789");
+		triFontPrint(100, 70, GREEN, "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+		triFontPrint(100, 90, BLUE, "abcdefghijklmnopqrstuvwxyz");
+		triFontPrint(100, 110, WHITE, "@#$%^&*+-()[]{}<>/\\|~`\"");
+
+		// Activate the internal debug font
+		triFontActivate(0);
+		triFontPrintf(2, 2, WHITE, "FPS: %.2f - FPS Max: %.2f - FPS Min: %.2f", triFps(), triFpsMax(), triFpsMin());
 
 		// Activate our second font
 		triFontActivate(impact20);
 
 		// Draw our character set using the second font
-		triFontPrint(160, 150, RED, " .,!?:;0123456789");
-		triFontPrint(160, 170, GREEN, "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
-		triFontPrint(160, 190, BLUE, "abcdefghijklmnopqrstuvwxyz");
-		triFontPrint(160, 210, WHITE, "@#$%^&*+-()[]{}<>/\\|~`\"\n\ttabs and \tline breaks\n\tare \t\t\t\tsupported now!");
-		
-		// Activate the internal debug font
-		triFontActivate(0);
-		triFontPrintf(2, 2, WHITE, "FPS: %.2f - FPS Max: %.2f - FPS Min: %.2f", triFps(), triFpsMax(), triFpsMin());
+		triFontPrint(100, 150, RED, " .,!?:;0123456789");
+		triFontPrint(100, 170, GREEN, "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
+		triFontPrint(100, 190, BLUE, "abcdefghijklmnopqrstuvwxyz");
+		triFontPrint(100, 210, WHITE, "@#$%^&*+-()[]{}<>/\\|~`\"");
 
-		triDrawRectOutline( 4, 39 152, 212, WHITE );
-		triFontPrintAlign( 5, 40, 150, 210, WHITE, TRI_FONT_ALIGN_JUSTIFY, "This is some\njustified text.\nJustification!");
-		triFontPrintAlign( 5, 40, 150, 210, WHITE, TRI_FONT_ALIGN_BOTTOM|TRI_FONT_ALIGN_RIGHT, "This is bottom\nand right aligned.");
-		
 		triSwapbuffers();
 	}
 

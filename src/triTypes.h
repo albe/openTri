@@ -64,7 +64,7 @@ typedef unsigned char triBool;
 typedef float triFloat;
 
 // For now triDouble isn't quaranteed to be 64bit, but is platform dependant -> PSP has no 64bit FPU, so we avoid that
-#ifndef _PSP
+#ifndef __PSP__
 typedef double triDouble;
 #else
 typedef float triDouble;		// FIXME: portability issue -> double should be expected to be 64bit

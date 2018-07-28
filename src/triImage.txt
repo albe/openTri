@@ -58,7 +58,6 @@ By default, the above defines default to the following:
 	#define GU_PSM_DXT5		(10) /* Texture */
 
 
-All multi-byte words in the file are supposed to be stored in little-endian order.
 
 The file header is a 16 byte long dataset, identifying the image format and giving the number of
 sub images/frames included in the file.
@@ -101,9 +100,8 @@ a palette block with a number of entries equal to the image format, each entry t
 For 4Bit images (IMG_FORMAT_T4) the palette consists of 16 entries. For any other format it contains exactly 256 entries.
 Each palette entry is either 2 or 4 bytes in size, depending on palformat.
 
-The flags contain a number of bits describing how the image data is stored. Currently, this can be swizzled (see http://wiki.ps2dev.org/psp:ge_faq),
-RLE and/or gzip compressed. The order of compression applied is RLE, then gzip.
-Other compression methods may follow in future revisions to the file format.
+The flags contain a number of bits describing how the image data is stored. Currently, this can be swizzled (see http://wiki.ps2dev.org/psp:ge_faq), RLE and/or gzip compressed. Other compression methods may follow in future revisions to
+the file format.
 
 numLevels specifies the number of mipmap level stored together with the original image. Each mipmap level is one quarter (half
 on both vertical and horizontal directions) the size of the previous level. For paletted images, all mipmap levels share the

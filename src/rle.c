@@ -161,7 +161,7 @@ void decodeRLE( void* src, int srcLen, void* dst, int dstLen, int bits )
     }
     
     #else
-    #ifdef _PSP
+    #ifdef PSP
     if (bits==8) {
 		asm(
 			"addiu $8, $0, $0\n"		// edx = 0

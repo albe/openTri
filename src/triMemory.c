@@ -11,7 +11,7 @@ triMemory.c
 #include "triTypes.h"
 #include "triLog.h"
 
-#define		MAX_AMOUNT	4096
+#define		MAX_AMOUNT	512
 
 typedef struct triMemoryBlock
 {

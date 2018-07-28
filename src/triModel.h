@@ -100,13 +100,15 @@ typedef struct triPart
 
 
 /* A Mesh header: "tMhH"
- * followed by numVerts vertices, each with size vertSize
+ * followed by numFrames*numVerts vertices, each with size vertSize
  */
 typedef struct triMeshHeader
 {
 	triChar		name[12];
 	triU32		vertFormat;
 	triU16		numVerts;
+	triU16		numFrames;		// number of keyframe meshes - 1
+	triU16		reserved;
 	triU16		flags;
 	triU16		vertSize;		// Size of one vertex in bytes
 	triU16		texID;
@@ -138,15 +140,23 @@ typedef struct triMorphHeader
 } triMorphHeader;	// 4 bytes
 
 
+typedef struct triKeyframeHeader
+{
+	triU8		mode;		// vertex morph/bone animation
+	triU8		id;
+} triKeyframeHeader;
+
+
 /* A Skinning bone header: "tBH "
- * followed by numBones 4x4 float matrices, giving skinning matrices for weight indices 0 - numBones-1
+ * followed by a 4x4 float matrix (mode = 0) or a 4 float quaternion (mode = 1)
  */
 typedef struct triBoneHeader
 {
-	triU8		numBones;
-	triU8		reserved1;
-	triU16		reserved2;
-} triBoneHeader;	// 4 bytes
+	triChar		name[12];
+	triU8		boneID;
+	triU8		mode;
+	triU16		reserved;
+} triBoneHeader;	// 16 bytes
 
 
 
@@ -191,6 +201,87 @@ typedef struct triModel
 	
 	struct triModel*	next;
 } triModel;
+
+
+/*
+	model	-> part[n]	-> mesh	-> vertices[v]
+								-> numBones, boneIDs[numBones]; // numBones = 1 to 8
+	
+	keyframe:
+	triModelKeyframeAnimator {
+		triU16 start, end;		// start and end frames
+		float cur;				// current frame
+		triFloat	fps;		// animation speed (0.0 = use default)
+		triUChar loop;			// loop animation?
+		triUChar reserved[3];
+	}
+	model -> parts[numKeyframes][numParts];
+	int startframe, endframe;
+	int curframe, nextframe;
+	float step;
+
+	triModelAnimationSetKeyframe( int start, int end, float speed );
+	triModelAnimationUpdate( float dt );
+	triModelAnimationRender();
+	
+	
+	model -> 
+	bone:
+	per model:
+		per bone:
+			matrix, weight
+
+	triModelBoneAnimator {
+		triQuat rot[numKeyframes][numBones];
+		int numBones;
+		int numKeyframes;
+		int loop;
+		float cur;
+	}
+
+	triModelAnimationSetBone( int bone, rotation rot );
+	triModelAnimationSetBoneAnimator( triModelBoneAnimator* ani );
+ */
+
+typedef struct triModelMorphAnimator
+{
+	triU16 start, end;		// start and end frames
+	float cur;				// current frame
+	triFloat fps;			// animation speed (0.0 = use default)
+	triS8 loop;				// loop animation?
+	triU8 reserved[3];
+} triModelKeyframeAnimator;
+
+typedef struct triModelBoneAnimator
+{
+	triQuat** rot;
+	triU8 numBones;
+	triU8 numKeyframes;
+	triS8 loop;
+	float cur;
+} triModelBoneAnimator;
+
+typedef struct triModelAnimation
+{
+	triVec4f		pos;
+	triVec4f		rot;
+	triModelPart**	parts;		// parts[numKeyframes][numParts]
+	triU32			numParts;
+	triU32			animator;	// TRI_MODEL_KEYFRAME or TRI_MODEL_BONE	
+	union
+	{
+		triU32			numKeyframes;
+		triU32			numBones;
+	};
+	triFloat		curFrame;
+
+	triS32			boundingCheck;	// flag which bounding checks to do on the mesh (0 = none, 1 = boundingBox, 2 = boundingSphere)
+	triVec3f		boundingBox[8];
+	triVec4f		boundingSphere;	// x,y,z,radius
+	
+	struct triAnimatedModel*	next;
+} triModelAnimation;
+
 
 typedef struct triTex
 {

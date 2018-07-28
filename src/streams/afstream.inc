@@ -151,9 +151,8 @@ long afstream_write( stream* s, void* buf, unsigned long size )
 		long long ret;
 		if (size<ret_sz)
 			f->async_error = sceIoWaitAsync( f->fd, &ret );	// wait for previous buffer flush
-		sceIoWriteAsync( f->fd, buf, size );
+		sceIoWriteAsync( f->fd, buf, size-remain );
 		f->wait |= BFILE_WAIT_WRITE;
-		remain = 0;
 	}
 	
 	if (remain>0)
