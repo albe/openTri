@@ -22,7 +22,7 @@ Mudkip Adventures - https://web.archive.org/web/20111130190741/http://www.fx-wor
 
 ## triGraphics:
 - GU setup (all possible pixelformats)/Doublebuffering functionality
-- Primitive drawing (lines, outlined rect, solid rect, rotated solid rect, gradient rect, solid circle, outlined circle, gradient circle, filled triangle, outlined triangle, gradient triangle)
+- Primitive drawing (lines, outlined/solid/gradient rect, rotated solid rect, solid/outlined/gradient circle, filled/outlined/gradient triangle, solid/gradient star)
 - Image drawing (rotated and non-rotated)
 - Color ops (and/or/not etc. see pspgu.h for a full list ;P)
 - Image tinting (through the sceGuTexFunc functionality)
@@ -33,8 +33,10 @@ Mudkip Adventures - https://web.archive.org/web/20111130190741/http://www.fx-wor
 - Image animation (concated images/spritesheets) drawing (normal and rotated)
 - Full render to image functionality
 - Basic render to texture functionality (more complete renderbuffer functionality in tri3d)
-- Images:
+
+### Images:
 * load PNG (all formats), TGA (all formats), own format (supports mipmaps, animation, palettes and different compressions like RLE and GZIP)
+* load and draw huge images (>512x512)
 * save PNG (with/without alpha), TGA (with/without RLE compression, with/without alpha), own format
 * supports paletted images as well as all other PSP formats (4444,5551,5650,DXT1/3/5)
 * swizzle/unswizzle images, upload images to VRAM/download to RAM
@@ -42,7 +44,8 @@ Mudkip Adventures - https://web.archive.org/web/20111130190741/http://www.fx-wor
 * Load images animations as spritesheets from any supported format
 * Capture framebuffer into image struct for saving (screenshots) or other use
 * all image loads are refcounted (no double images in RAM)
-- Fonts:
+
+### Fonts:
 * based on pgeFont, loads any TTF/OTF font and creates a bitmap font, useable for printing text
 very fast
 
@@ -65,8 +68,12 @@ very fast
 - support for AT3 playback for background music (using ME)
 - support for WAV playback for sound effects
 
+## triNet:
+- support for connecting to sockets as client/server
+
 ## generic libraries:
 - VRAM memory manager
+- generic fast memory manager for object heaps
 - stream interface with buffered streams layer and asynchronous buffered file reader for higher performance Memstick reading, as well as support for (zlib) compressed streams that are decompressed on the go
 - VMath, VFPU Vector/Matrix math library
 - pmplib for decoding videos (AVC+MP3/AAC/AT3) with support for fullscreen playback (intro videos) or giving control over how the video gets displayed (ingame videos that can be used as additional briefing incoming or be displayed on 3D objects as texture)
