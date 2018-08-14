@@ -14,7 +14,7 @@ LuaPlayer HomeMister v2 (LPHMv2) - http://forums.qj.net/showpost.php?p=2102549&p
 
 PDF reader application - https://web.archive.org/web/20111130000918/http://forums.ps2dev.org:80/viewtopic.php?t=10845
 
-Mudkip Adventures - https://web.archive.org/web/20111130190741/http://www.fx-world.org:80/wordpress/?p=31
+Mudkip Adventures - https://github.com/albe/mudkip-adventures
 
 (see also https://web.archive.org/web/20111130041704/http://www.fx-world.org:80/wordpress/?p=55)
 
