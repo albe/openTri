@@ -75,6 +75,7 @@ very fast
 - VRAM memory manager
 - generic fast memory manager for object heaps
 - stream interface with buffered streams layer and asynchronous buffered file reader for higher performance Memstick reading, as well as support for (zlib) compressed streams that are decompressed on the go
+- a high performance memcpy through VFPU usage (https://github.com/albe/openTri/blob/master/src/streams/streams.c#L22)
 - VMath, VFPU Vector/Matrix math library
 - pmplib for decoding videos (AVC+MP3/AAC/AT3) with support for fullscreen playback (intro videos) or giving control over how the video gets displayed (ingame videos that can be used as additional briefing incoming or be displayed on 3D objects as texture)
 
