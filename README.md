@@ -5,6 +5,11 @@ Coded by Tomaz, Raphael, InsertWittyName
 
 See http://forums.qj.net/psp-development-forum/128874-release-triengine-full-featured-game-engine.html for original release post.
 
+## NOTE
+
+This repository is not actively maintained. If anyone feels like it and is interested, I will give commit rights. I will also occasionally take PRs into consideration and merge them.
+
+See also https://github.com/SamRH/openTRI which seems to contain a few small fixes. I'd be happy to merge a PR containing the changes from there.
 
 ## Homebrew built with triEngine
 
