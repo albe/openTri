@@ -1370,6 +1370,7 @@ static triChar* _triImageLoadTriStream( stream* s, triImage *img, triU32 frame )
 			return("Error allocating image data!");
 	
 		stream_read( s, data, tic.size );
+		img->data = data;
 		
 		if (tch.flags&TRI_IMG_FLAGS_GZIP)
 		{
