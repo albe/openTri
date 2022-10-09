@@ -66,6 +66,7 @@ very fast
 - An OpenGL style texture manager keeping most frequently used textures in VRAM with automatic mipmap generation and prioritizing textures to stay in VRAM
 - A highly flexible particle engine supporting billboards, real 3D particles and line particles. Support for different particle interactions (bind to emitter, global force function (all particles), local force function (per particle), vortices (turbulences)) as well as different blend modes for the particles and up to 8 color/alpha fades during lifetime, giving a simple non-linear control of particle looks, also supports growing particles, selfrotation, glitter, global gravity, wind, emitter burnout and animated particle textures, plus all that can be driven by simple scripts so you can change particle systems without having to recompile your code!
 - simple model management/rendering
+- custom model file format in native PSP GU structure with optional compression (See https://github.com/prochazkaml/openTriConverter by @prochazkaml for a convenient converter)
 
 
 
